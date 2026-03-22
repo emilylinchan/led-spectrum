@@ -3,6 +3,7 @@ pet project written in C++17, using the MinGW compiler (GCC version 15.2.0)
 ## high level analysis:
 * `main.cpp`: the entry point of the application. Initializes and calls audio engine and visualizer. <br>
 * `engine.cpp`: the data pipline. Responsible for capturing the audio levels and samples for the visualizer. <br>
+* `signal_processor.cpp`: responsible for processing the audio samples for FFT. <br>
 * `visualizer.cpp`: to display the audio levels in a graphical way (spectral visualizer). <br>
 
 ## prereqs
