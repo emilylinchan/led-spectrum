@@ -2,15 +2,32 @@
 
 FFTEngine::FFTEngine()
 {
-    size_t n = 2400; // input sample (real)
-    size_t np = n / 2 + 1; // returning sample size (real + complex)
-    size_t align = sizeof(Complex);
+    n = 2400; // input sample (real)
+    np = n / 2 + 1; // retursning sample size (real + complex)
+    align = sizeof(Complex);
 
-    array1<double> f(n, align);
-    array1<Complex> F(np, align);
+    f.Allocate(n, align);
+    F.Allocate(np, align);
 }
 
-std::array<double, 2400> FFTEngine::Run(std::array<double, 2400>& audioBuffer)
+std::vector<double> FFTEngine::Run(std::array<double, 2400>& audioBuffer)
 {
 
+    std::vector<double> magnitudes;
+
+    for(size_t i = 0; i < audioBuffer.size(); ++i)
+    {
+        f[i] = audioBuffer[i];
+    }
+
+    // perform fft
+    fftwpp::rcfft1d Forward(n, f, F);
+
+    magnitudes.reserve(1201);
+    for(size_t i = 0; i < F.Size(); ++i)
+    {
+        magnitudes.push_back(std::abs(F[i]));
+    }
+
+    return magnitudes;
 }
