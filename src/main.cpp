@@ -46,7 +46,25 @@ int main() {
     }
     */
 
-    
+    // FFT Test
+    while(true) 
+    {
+        s.Accumulate();
+
+        if(s.isFull())
+        {
+            auto pass  = s.GetFFTBuffer();
+            auto magnitudes  = f.Run(pass);
+
+            std::cout << magnitudes.size() << "\n";
+
+            for(size_t i = 0; i < magnitudes.size(); ++i)
+            {
+                std::cout << i << ". " << magnitudes[i] << "\n";
+            }
+        }
+
+    }
 
 
     return 0;
