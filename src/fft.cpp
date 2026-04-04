@@ -24,9 +24,21 @@ std::vector<double> FFTEngine::Run(std::array<double, 2400>& audioBuffer)
 {
     std::vector<double> magnitudes;
 
-    for (size_t i = 0; i < audioBuffer.size(); ++i)
+    for (size_t i = 0; i < n; ++i)
     {
-        f[i] = audioBuffer[i];
+        double sample = 0.0;
+
+        if(i < audioBuffer.size())
+        {
+            sample = static_cast<double>(audioBuffer[i]);
+
+            if(std::isinf(sample) || std::isnan(sample))
+            {
+                sample =  0.0;
+            }
+        }
+
+        f[i] = sample;
     }
 
     // perform fft
@@ -39,7 +51,10 @@ std::vector<double> FFTEngine::Run(std::array<double, 2400>& audioBuffer)
         double real = F[i][0];
         double imag = F[i][1];
 
-        magnitudes.push_back(std::sqrt(real * real + imag * imag));
+        // normalize
+        double raw = std::sqrt(real * real + imag * imag);
+
+        magnitudes.push_back(raw);
     }
 
     return magnitudes;
