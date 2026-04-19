@@ -1,16 +1,10 @@
 #include "../inc/main.h"
 
-// FFTW++ global variables
-namespace parallel { void Threshold(size_t threads) {} }
-size_t threshold = 1024; 
-namespace utils { size_t ALIGNMENT = 32; }
-
 int main() {
     
     RenderEqualizer o;
     SignalProcessor s;
     FFTEngine f;
-    // o.Display();
 
     // FFT Test
     while(1) 
