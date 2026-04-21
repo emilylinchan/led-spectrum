@@ -7,6 +7,10 @@ pet project written in C++17, using the MinGW compiler (GCC version 15.2.0)
 * `fft.cpp`: responsible for performing all the math, including fast fourier transforms and decibel conversions. <br>
 * `visualizer.cpp`: to display the audio levels in a graphical way (spectral visualizer). <br>
 
+## flowchart
+<img width="7720" height="1030" alt="flowchart" src="https://github.com/user-attachments/assets/d0bab9b1-71e3-4b6e-b8b1-fd6654bdc643" />
+
+
 ## prereqs
 * **MSYS2 / MinGW-w64**
 * **CMake**
