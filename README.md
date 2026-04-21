@@ -1,6 +1,8 @@
-spectral visualizer written in C++17 using the MinGW compiler (GCC version 15.2.0)
+Spectral visualizer written in C++17 using the MinGW compiler (GCC version 15.2.0)
 
 ## System Architecture
+Terminal Equalizer captures raw system audio directly from the soundcard, processes it through a real-time DSP pipeline, and renders it to the console without screen tearing.
+
 <img width="7720" height="1030" alt="flowchart" src="https://github.com/user-attachments/assets/d0bab9b1-71e3-4b6e-b8b1-fd6654bdc643" />
 
 ## The DSP Engine
@@ -8,6 +10,8 @@ At the core of the visualizer is the **Discrete Fourier Transform (DFT)**, power
 The engine takes a time-domain window of audio samples and transforms it into a number of distinct frequency magnitudes.
 
 $$X_k = \sum_{n=0}^{N-1} x_n e^{-i 2\pi k n / N}$$
+
+<img width="1251" height="300" alt="image" src="https://github.com/user-attachments/assets/8cda5963-9526-4b9e-8dd5-b2c83174b093" /> <br>
 
 To make the output visually accurate to human hearing:
 1. **Data Scrubbing:** Acts as a firewall against WASAPI driver glitches, dropping `inf`, `NaN`, and integer overflows.
@@ -24,9 +28,9 @@ To make the output visually accurate to human hearing:
 * **FFTW3** (`libfftw3-3.dll`): Included in `thirdparty/lib/`. 
   * *Note: The included DLL is pre-compiled for Windows x64. If you are building on a different architecture, you will need to swap this file with the correct binary from the [FFTW website](https://www.fftw.org/).*
 
-## Quick Start
+## Running It
 ```bash
-git clone [https://github.com/majockbim/terminal-equalizer](https://github.com/majockbim/terminal-equalizer)
+git clone https://github.com/majockbim/terminal-equalizer
 cd terminal-equalizer
 
 # Compile the project
