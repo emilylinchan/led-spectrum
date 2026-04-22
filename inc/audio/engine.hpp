@@ -26,6 +26,9 @@ public:
     // todo: get audio which is passable via an array of floats/doubles
     float FloatVolume();
 
+    // in AudioEngine header
+    UINT32 GetSampleRate() const { return pWAVEFORMATEX->nSamplesPerSec; }
+
 private:
     // Initialize object
     AudioEngine();

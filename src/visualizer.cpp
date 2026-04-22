@@ -31,16 +31,18 @@ void RenderEqualizer::DisplayBuffer() {
 
 }
 
-void RenderEqualizer::EnableVisualizer(std::vector<double>& freq) 
+void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::mutex& magMutex, int sampleRate) 
 {
     GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
     termWidth  = csbi.srWindow.Right - csbi.srWindow.Left + 1;
     termHeight = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
 
-    unsigned short frameCount = 0;
+    N_BARS = termWidth;
+
+    unsigned int frameCount = 0;
     std::string frame;
     frame.reserve(termWidth * termHeight);
-
+    std::vector<float> barValues(N_BARS);
 
     while (1) {
 
@@ -48,11 +50,20 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq)
             GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
             termWidth  = csbi.srWindow.Right - csbi.srWindow.Left + 1;
             termHeight = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+            frame.reserve(termWidth * termHeight);
         }
         frameCount++;
 
-        frame.clear();
+        {
+            std::lock_guard<std::mutex> lock(magMutex);
+            for (int i = 0; i < N_BARS; ++i) {
+                int binLow = (int)(20.0f * pow(20000.f / 20.f, (float)i / N_BARS) * 1201 / (sampleRate / 2.f));
+                int binHigh = (int)(20.0f * pow(20000.f / 20.f, (float)(i+1) / N_BARS) * 1201 / (sampleRate / 2.f))
+            }
 
+        }
+
+        frame.clear();
         for (int row = termHeight; row > 0; row--) {
             for (int i = 0; i < N_BARS; i++) {
                 int barGheight = (int)(barValues[i] * termHeight);
