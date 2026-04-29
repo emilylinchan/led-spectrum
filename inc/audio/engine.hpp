@@ -27,13 +27,20 @@ public:
     float FloatVolume();
 
     // in AudioEngine header
-    UINT32 GetSampleRate() const { return pWAVEFORMATEX->nSamplesPerSec; }
+    UINT32 GetSampleRate() const { return pWAVEFORMATEX ? pWAVEFORMATEX->nSamplesPerSec : 44100; }
+    bool IsRunning() const { return running; }
+    void Stop() { running = false; }
 
 private:
     // Initialize object
     AudioEngine();
 
     ~AudioEngine();
+
+    bool running = true;
+    WORD bitsPerSample = 0;
+    WORD nChannels = 0;
+    bool isFloat = false;
 
     // Initialize member variables (volume level)
     IMMDeviceEnumerator* pEnumerator = NULL;
