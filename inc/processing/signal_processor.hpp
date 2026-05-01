@@ -15,9 +15,7 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-
-#ifndef SIGNAL_PROCESSOR_HPP
-#define SIGNAL_PROCESSOR_HPP
+#pragma once
 
 #include "../audio/engine.hpp"
 #include <vector>
@@ -35,6 +33,3 @@ private:
     std::vector<double> samples;
 
 };
-
-
-#endif

@@ -1,5 +1,3 @@
-#pragma once
-
 /*
     Terminal Equalizer - A real-time command line audio visualizer
     Copyright (C) 2026 Majock Bim
@@ -17,9 +15,7 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-
-#ifndef VISUALIZER_HPP
-#define VISUALIZER_HPP
+#pragma once
 
 #include "../audio/engine.hpp"
 #include "windows.h"
