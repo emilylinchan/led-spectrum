@@ -17,12 +17,11 @@
   </a>
 
   <br>
+  <br>
 
-  <img width="520" alt="spectrum-ezgif com-video-to-gif-converter" src="https://github.com/user-attachments/assets/199c8057-843c-4021-84d8-cbcff293bef8" />
+  <img width="1920" alt="spectrum-ezgif com-video-to-gif-converter" src="https://github.com/user-attachments/assets/199c8057-843c-4021-84d8-cbcff293bef8" />
 
 </div>
-
-<br/>
 
 ## System Architecture
 **Spectrum** captures raw system audio directly from the soundcard, processes it through a real-time DSP pipeline, and renders it to the console without screen tearing.
