@@ -1,0 +1,3 @@
+"C:\Program Files\CMake\bin\cmake.exe" -E rm -f CMakeFiles\spectrum.dir/objects.a
+C:\msys64\ucrt64\bin\ar.exe qc CMakeFiles\spectrum.dir/objects.a @CMakeFiles\spectrum.dir\objects1.rsp
+C:\msys64\ucrt64\bin\c++.exe -fopenmp -mconsole -Wl,-subsystem,console -static -Wl,--whole-archive CMakeFiles\spectrum.dir/objects.a -Wl,--no-whole-archive -o spectrum.exe -Wl,--out-implib,libspectrum.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles\spectrum.dir\linkLibs.rsp

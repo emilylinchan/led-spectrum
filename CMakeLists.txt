@@ -16,6 +16,7 @@ add_executable(spectrum
     src/fft.cpp
     src/settings.cpp
     third_party/ref/yyjson.c
+    resources/resources.rc
 )
 
 # 3. Include directories
