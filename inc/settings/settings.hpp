@@ -16,8 +16,12 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-
+#if defined(_MSC_VER) && defined(__clang__)
 #pragma once
+#endif
+
+#ifndef __Settings_H__
+#define __Settings_H__
 
 #include <stdio.h>
 #include <vector>
@@ -45,7 +49,8 @@ enum ValueType {
     VT_Double = 1,
     VT_Character = 2,
     VT_Boolean = 3,
-    VT_String = 4
+    VT_String = 4,
+    VT_Int = 5
 };
 
 struct JsonValue {
@@ -54,6 +59,7 @@ struct JsonValue {
         bool booleanValue;
         double doubleValue;
         char characterValue;
+        int intValue;
         const char* stringValue;
     } defaultValue;
     yyjson_val* pointer;
@@ -76,6 +82,7 @@ struct Theme {
     char themeName[MAX_THEME_NAME];
     char themeId[MAX_THEME_NAME];
     char themeMode[MAX_THEME_NAME];
+    int key;
 };
 
 struct ColorRGB {
@@ -106,12 +113,14 @@ private:
 
 public:
     struct Theme currentTheme;
+    std::vector<struct Theme> themes;
     bool noBgColor = false;
     bool showMenu = false;
     JsonFileReader(void) = default;
     ~JsonFileReader() = default;
 
     int __cdecl ReadSettings(_In_ FilePtr jsonFile, _In_ struct JsonValue* jsonThemeOptions, _In_ size_t _Size);
+    void __cdecl WriteJsonFile(void);
 };
 
 class JsonFileFinder final
@@ -122,3 +131,5 @@ public:
 
     int __cdecl FindJsonFiles(_In_ JsonFileReader* fileReader);
 };
+
+#endif
