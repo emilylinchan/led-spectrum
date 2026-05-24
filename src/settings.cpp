@@ -78,118 +78,76 @@ int __cdecl JsonFileFinder::FindJsonFiles(_In_ JsonFileReader* fileReader) {
     struct _finddata_t jsonFilesFinder;
     intptr_t handle;
     std::vector<struct Theme> themes;
-    std::vector<Option> options;
-    int currentTheme = 0;
 
+    // 1. Inject the default Pink Theme at index 0
+    struct Theme pinkTheme{};
+    strcpy_s(pinkTheme.themeName, "Pink Theme");
+    strcpy_s(pinkTheme.themeId, "pink-default");
+    strcpy_s(pinkTheme.themeMode, "Pink Mode");
+    pinkTheme.colorRed = 1.0;
+    pinkTheme.colorGreen = 0.41; 
+    pinkTheme.colorBlue = 0.70;  
+    pinkTheme.key = 49; // Key '1'
+    themes.push_back(pinkTheme);
+
+    // 2. Scan for other themes
     handle = _findfirst("themes\\*.json", &jsonFilesFinder);
-    if (handle == -1L) return(1); 
+    if (handle != -1L) {
+        do {
+            struct Theme oneTheme{};
+            FilePtr jsonFile;
+            
+            char fullThemesPath[MAX_PATH];
+            sprintf_s(fullThemesPath, MAX_PATH, "themes\\%s", jsonFilesFinder.name);
 
+            fopen_s(&jsonFile, fullThemesPath, "r");
+            if (!jsonFile) {
+                continue;
+            } 
+
+            struct JsonValue JsonThemeOptions[] = {
+                {VT_Double, {.doubleValue = 1.0}, nullptr, &oneTheme.colorRed, "spectrum.tui.colorR", "theme.properties"},
+                {VT_Double, {.doubleValue = 1.0}, nullptr, &oneTheme.colorGreen, "spectrum.tui.colorG", "theme.properties"},
+                {VT_Double, {.doubleValue = 1.0}, nullptr, &oneTheme.colorBlue, "spectrum.tui.colorB", "theme.properties"},
+                {VT_Boolean, {.booleanValue = false}, nullptr, &oneTheme.useRandomCharacters, "spectrum.tui.useRandomCharacters", "theme.properties"},
+                {VT_Character, {.characterValue = '='}, nullptr, &oneTheme.customCharacter, "spectrum.tui.customCharacter", "theme.properties"},
+                {VT_String, {.stringValue = "Default Mode"}, nullptr, &oneTheme.themeMode, "spectrum.tui.visualizerMode", "theme.properties"},
+                {VT_Int, {.intValue = 0}, nullptr, &oneTheme.key, "spectrum.tui.key", "theme.properties"},
+                {VT_String, {.stringValue = "**Untitled-Theme**"}, nullptr, &oneTheme.themeName, "theme.name", "root"},
+                {VT_String, {.stringValue = "**No-ID**"}, nullptr, &oneTheme.themeId, "theme.id", "root"}
+            };
+
+            if (fileReader->ReadSettings(jsonFile, JsonThemeOptions, sizeof(JsonThemeOptions) / sizeof(struct JsonValue)) == 0) {
+                if (oneTheme.key == 49) {
+                    oneTheme.key = 0; // Prevent overriding the default Pink Theme hotkey
+                }
+                themes.push_back(oneTheme);
+            }
+            if (jsonFile) fclose(jsonFile);
+        } while (_findnext(handle, &jsonFilesFinder) == 0);
+        _findclose(handle);
+    }
+
+    // 3. Load global settings (quietly)
     struct JsonValue JsonConfigs[] = {
-        {VT_Boolean, {.booleanValue = true}, nullptr, &fileReader->showMenu, "spectrum.tui.showMenu", "root"},
+        {VT_Boolean, {.booleanValue = false}, nullptr, &fileReader->showMenu, "spectrum.tui.showMenu", "root"},
         {VT_Boolean, {.booleanValue = true}, nullptr, &fileReader->noBgColor, "spectrum.tui.noBackgroundColor", "root"}
     };
 
-    do {
-        struct Theme oneTheme{};
-        FilePtr jsonFile;
-        
-        char fullThemesPath[MAX_PATH];
-        sprintf_s(fullThemesPath, MAX_PATH, "themes\\%s", jsonFilesFinder.name);
-
-        fopen_s(&jsonFile, fullThemesPath, "r");
-        if (!jsonFile) {
-            continue;
-        } 
-
-        struct JsonValue JsonThemeOptions[] = {
-            {VT_Double, {.doubleValue = 1.0}, nullptr, &oneTheme.colorRed, "spectrum.tui.colorR", "theme.properties"},
-            {VT_Double, {.doubleValue = 1.0}, nullptr, &oneTheme.colorGreen, "spectrum.tui.colorG", "theme.properties"},
-            {VT_Double, {.doubleValue = 1.0}, nullptr, &oneTheme.colorBlue, "spectrum.tui.colorB", "theme.properties"},
-            {VT_Boolean, {.booleanValue = false}, nullptr, &oneTheme.useRandomCharacters, "spectrum.tui.useRandomCharacters", "theme.properties"},
-            {VT_Character, {.characterValue = '='}, nullptr, &oneTheme.customCharacter, "spectrum.tui.customCharacter", "theme.properties"},
-            {VT_String, {.stringValue = "Default Mode"}, nullptr, &oneTheme.themeMode, "spectrum.tui.visualizerMode", "theme.properties"},
-            {VT_Int, {.intValue = 0}, nullptr, &oneTheme.key, "spectrum.tui.key", "theme.properties"},
-            {VT_String, {.stringValue = "**Untitled-Theme**"}, nullptr, &oneTheme.themeName, "theme.name", "root"},
-            {VT_String, {.stringValue = "**No-ID**"}, nullptr, &oneTheme.themeId, "theme.id", "root"}
-        };
-
-        int pSuccess = fileReader->ReadSettings(jsonFile, JsonThemeOptions, sizeof(JsonThemeOptions) / sizeof(struct JsonValue));
-        if (pSuccess != 0) {
-            if (pSuccess != -19) {
-                if (jsonFile) fclose(jsonFile);
-            }
-            _findclose(handle);
-            return(-5);
-        }
-
-        themes.push_back(oneTheme);
-        if (jsonFile) fclose(jsonFile);
-    } while (_findnext(handle, &jsonFilesFinder) == 0);
-
-    size_t index = 0;
-    while (index < themes.size()) {
-        struct Theme oneTheme = themes.at(index);
-        fprintf(stdout, "%d\n", oneTheme.key);
-        struct Option oneOption;
-        oneOption.text = std::string(oneTheme.themeName) +  + " (" + oneTheme.themeId + ")";
-        oneOption.prefix = "*";
-        oneOption.index = index;
-        oneOption.backgroundColor = {0, 0, 25};
-        oneOption.foregroundColor = {0, 0, 255};
-        options.push_back(oneOption);
-        index++;
-    }
-
     FilePtr configs;
     fopen_s(&configs, "settings.json", "r");
-    if (!configs) {
-        _findclose(handle);
-        return(-1);
-    } else {
-        int pSuccess = fileReader->ReadSettings(configs, JsonConfigs, sizeof(JsonConfigs) / sizeof(struct JsonValue));
-        if (pSuccess != 0) {
-            if (pSuccess != -19) {
-                if (configs) fclose(configs);
-            }
-            _findclose(handle);
-            return(-5);
-        }
+    if (configs) {
+        fileReader->ReadSettings(configs, JsonConfigs, sizeof(JsonConfigs) / sizeof(struct JsonValue));
         fclose(configs);
     }
-    _findclose(handle);
 
-    int _Char = 0;
-    std::string logo;
-    logo = AsciiRgb(48, 0, 25, 23) AsciiRgb(38, 0, 255, 236) " * ╭─╮╭─╮╭─╴╭─╴╶┬╴╭─╮╷ ╷╭┬╮ * Authors <\033[97mMajockbim \"https://majockbim.com/\", Joe.r Dev" AsciiRgb(38, 0, 255, 236) "> \n"
-                    AsciiRgb(48, 0, 18, 25) AsciiRgb(38, 0, 180, 255)  " = ╰─╮├─╯├╴ │   │ ├┬╯│ ││││ = [\033[97mSPECTRUM" AsciiRgb(38, 0, 180, 255) "] Terminal Equalizer - Version 1.2.036d9c33 \n"
-                    AsciiRgb(48, 0, 7, 25) AsciiRgb(38, 0, 73, 255) " * ╰─╯╵  ╰─╴╰─╴ ╵ ╵╰╴╰─╯╵ ╵ * Releases: https://github.com/majockbim/spectrum/releases/\n";
-    logo += AsciiRgb(48, 0, 0, 25) AsciiRgb(38, 0, 0, 255) " * This program was originally created by MajockBim and edited by Joe.r Dev. It is licensed under the MIT License. *\n";
-    while (true) {
-        GetKeyPressed(&_Char);
-        if (_Char == VK_UP) {
-            if (currentTheme == 0) {
-                currentTheme = options.size() - 1;
-            } else {
-                currentTheme--;
-            }
-        } else if (_Char == VK_DOWN) {
-            if (currentTheme == (int)options.size() - 1) {
-                currentTheme = 0;
-            } else {
-                currentTheme++;
-            }
-        } else if (_Char == VK_RETURN) {
-            fileReader->currentTheme = themes.at(currentTheme);
-            break;
-        } 
-        ClearConsole(); 
-        std::cout << logo;
-        std::cout << "Theme Selected: ";
-        ShowOption(&options.at(currentTheme)); 
-    }
+    // 4. Set Pink Theme as current and exit (Minimalist: no menu)
+    fileReader->currentTheme = themes.at(0);
     fileReader->themes = themes;
+
     return(0);
 }
+
 int __cdecl JsonFileReader::ReadSettings(_In_ FilePtr jsonFile, _In_ struct JsonValue* jsonThemeOptions, size_t _Size) {
     if (!jsonThemeOptions) return(-1);
     if (!jsonFile) return(-19);
@@ -220,15 +178,13 @@ int __cdecl JsonFileReader::ReadSettings(_In_ FilePtr jsonFile, _In_ struct Json
         } else {
             currentRoot = root;
         }
-        if (!currentRoot) {
-            yyjson_doc_free(doc);
-            return(-6);
+
+        if (currentRoot) {
+            jsonThemeOptions[index].pointer = yyjson_obj_get(currentRoot, jsonThemeOptions[index].name);
+        } else {
+            jsonThemeOptions[index].pointer = nullptr;
         }
-        jsonThemeOptions[index].pointer = yyjson_obj_get(currentRoot, jsonThemeOptions[index].name);
-        if (jsonThemeOptions[index].pointer == nullptr) {
-            yyjson_doc_free(doc);
-            return(-3);
-        }
+
         if (jsonThemeOptions[index].pointer) {
             switch (jsonThemeOptions[index].valueType) 
             {
@@ -241,13 +197,15 @@ int __cdecl JsonFileReader::ReadSettings(_In_ FilePtr jsonFile, _In_ struct Json
                 } break;
 
                 case VT_Int: {
-                    CopyValue<int>(jsonThemeOptions[index].defaultValue.intValue, yyjson_get_int(jsonThemeOptions[index].pointer), jsonThemeOptions[index].pointer1);
+                    CopyValue<int>(jsonThemeOptions[index].defaultValue.intValue, (int)yyjson_get_int(jsonThemeOptions[index].pointer), jsonThemeOptions[index].pointer1);
                 } break;
 
                 case VT_Character: {
                     const char* tmpString = yyjson_get_str(jsonThemeOptions[index].pointer);
                     if (tmpString) {
                         CopyValue<char>(jsonThemeOptions[index].defaultValue.characterValue, tmpString[0], jsonThemeOptions[index].pointer1);
+                    } else {
+                         CopyValue<char>(jsonThemeOptions[index].defaultValue.characterValue, jsonThemeOptions[index].defaultValue.characterValue, jsonThemeOptions[index].pointer1);
                     }
                 } break;
 
@@ -260,6 +218,32 @@ int __cdecl JsonFileReader::ReadSettings(_In_ FilePtr jsonFile, _In_ struct Json
                         } else if (jsonThemeOptions[index].defaultValue.stringValue) {
                             strcpy_s(_Ptr, MAX_THEME_NAME, jsonThemeOptions[index].defaultValue.stringValue);
                         }
+                    }
+                } break;
+            }
+        } else {
+             switch (jsonThemeOptions[index].valueType) 
+            {
+                case VT_Double: {
+                    CopyValue<double>(jsonThemeOptions[index].defaultValue.doubleValue, jsonThemeOptions[index].defaultValue.doubleValue, jsonThemeOptions[index].pointer1);
+                } break;
+
+                case VT_Boolean: {
+                    CopyValue<bool>(jsonThemeOptions[index].defaultValue.booleanValue, jsonThemeOptions[index].defaultValue.booleanValue, jsonThemeOptions[index].pointer1);
+                } break;
+
+                case VT_Int: {
+                    CopyValue<int>(jsonThemeOptions[index].defaultValue.intValue, jsonThemeOptions[index].defaultValue.intValue, jsonThemeOptions[index].pointer1);
+                } break;
+
+                case VT_Character: {
+                    CopyValue<char>(jsonThemeOptions[index].defaultValue.characterValue, jsonThemeOptions[index].defaultValue.characterValue, jsonThemeOptions[index].pointer1);
+                } break;
+
+                case VT_String: {
+                    char* _Ptr = reinterpret_cast<char*>(jsonThemeOptions[index].pointer1);
+                    if (_Ptr && jsonThemeOptions[index].defaultValue.stringValue) {
+                        strcpy_s(_Ptr, MAX_THEME_NAME, jsonThemeOptions[index].defaultValue.stringValue);
                     }
                 } break;
             }

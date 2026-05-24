@@ -40,16 +40,24 @@ public:
     void Display(); // general volume level
     void DisplayBuffer(); // print float values of buffer
 
-    void EnableVisualizer(std::vector<double>& freq, std::mutex& magMutex, int sampleRate, JsonFileReader& jsonFileReader);
+    void EnableVisualizer(std::vector<double>& freq, std::vector<double>& wave, std::mutex& magMutex, int sampleRate, JsonFileReader& jsonFileReader);
 
 private:
+    std::string getBraille(unsigned char mask);
+
     CONSOLE_SCREEN_BUFFER_INFO csbi;        
     int termWidth;
     int termHeight;
     int lastHeight;
     int lastWidth;
 
+    int numBins;
     int N_BARS;
+    std::vector<float> barValues;
+    std::vector<float> peakValues;
+    std::vector<float> peakDecay;
+    std::vector<float> waveValues;
+    bool oscilloscopeMode = false;
 
     std::vector<std::string> levels = 
     {   "#", 

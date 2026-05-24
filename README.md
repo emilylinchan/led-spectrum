@@ -72,7 +72,8 @@ $$X_k = \sum_{n=0}^{N-1} x_n e^{-i 2\pi k n / N}$$
 To make the output visually accurate to human hearing:
 1. **Data Scrubbing:** Acts as a firewall against WASAPI driver glitches, dropping `inf`, `NaN`, and integer overflows.
 2. **Decibel Conversion:** Raw amplitudes are normalized and converted to a logarithmic $\text{log}_{10}$ scale.
-3. **Frequency Binning:** The pitches are averaged down into a number visual UI bins, depending on the terminal size.
+3. **Frequency Binning:** The pitches are grouped into visual UI bins by taking the maximum peak in each frequency range.
+4. **Rolling Window FFT:** The engine uses an oversampled sliding window with a Hann window function to ensure smooth transitions between frames.
 
 ## Performance
 Benchmarked on an AMD Ryzen 5 7520U (2.80 GHz) at a 2400-sample window size:

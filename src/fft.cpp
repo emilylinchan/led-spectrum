@@ -55,7 +55,9 @@ std::vector<double> FFTEngine::Run(std::array<double, 2400>& audioBuffer)
             }
         }
 
-        f[i] = sample;
+        // Apply Hann window for smoother visualization and less spectral leakage
+        double window = 0.5 * (1.0 - std::cos(2.0 * 3.14159265358979323846 * i / (n - 1)));
+        f[i] = sample * window;
     }
 
     // perform fft

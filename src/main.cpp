@@ -49,19 +49,23 @@ int __cdecl main(void) {
 
     std::mutex magMutex;
     std::vector<double> sharedMagnitudes;
+    std::vector<double> sharedWaveform;
 
     std::thread t1([&]() {
         CoInitialize(NULL);
         while (keepRunning) {
             signal.Accumulate();
-            if (signal.isFull()) {
+            
+            // Process all available windows to catch up
+            while (signal.isFull() && keepRunning) {
                 auto pass = signal.GetFFTBuffer();
                 auto magnitudes = fft.Run(pass);
                 std::lock_guard<std::mutex> lock(magMutex);
                 sharedMagnitudes = magnitudes;
-            } else {
-                std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                sharedWaveform.assign(pass.begin(), pass.end());
             }
+            
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
         CoUninitialize();
     });
@@ -72,15 +76,9 @@ int __cdecl main(void) {
         JsonFileFinder jsonFileFinder;
         JsonFileReader jsonFileReader;
 
-        SetConsoleTitleA("Choose Theme");
-        int findResult = jsonFileFinder.FindJsonFiles(&jsonFileReader);
-        if (findResult == 1) {
-            std::cout << " * Can't find Themes: Resetting to default settings * " << std::endl;
-        }
-        SetConsoleTitleA("...");
-        std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+        jsonFileFinder.FindJsonFiles(&jsonFileReader);
         SetConsoleTitleA("SPECTRUM");
-        equalizer.EnableVisualizer(sharedMagnitudes, magMutex, sampleRate, jsonFileReader);
+        equalizer.EnableVisualizer(sharedMagnitudes, sharedWaveform, magMutex, sampleRate, jsonFileReader);
         CoUninitialize();
     });
 

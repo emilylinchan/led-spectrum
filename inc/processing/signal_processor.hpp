@@ -29,6 +29,10 @@ public:
     void Accumulate();
     std::array<double, 2400> GetFFTBuffer();
     bool isFull();
+    void clear();
+
+    static const int WINDOW_SIZE = 2400;
+    static const int HOP_SIZE = 120; // 20x oversampling for even smoother transitions
 
 private:
     std::vector<double> samples;

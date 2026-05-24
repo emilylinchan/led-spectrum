@@ -21,7 +21,7 @@
 SignalProcessor::SignalProcessor()
 {
     // reserve space for 5 sample packets of 480
-    samples.reserve(2400);
+    samples.reserve(WINDOW_SIZE);
 }
 
 void SignalProcessor::Accumulate()
@@ -33,17 +33,17 @@ void SignalProcessor::Accumulate()
     samples.insert(samples.end(), currentAudio.begin(), currentAudio.end());    
 }
 
-// if the vector somehow contains more than 2400 items don't remove them
+// if the vector somehow contains more than WINDOW_SIZE items don't remove them
 std::array<double, 2400> SignalProcessor::GetFFTBuffer()
 {   
     std::array<double, 2400> FFTBuffer;
 
     if(isFull()) {
-        // assign 0 - 2400
-        std::copy(samples.begin(), samples.begin() + 2400, FFTBuffer.begin());
+        // assign 0 - WINDOW_SIZE
+        std::copy(samples.begin(), samples.begin() + WINDOW_SIZE, FFTBuffer.begin());
 
-        // remove only the values added to FFTBuffer
-        samples.erase(samples.begin(), samples.begin() + 2400);
+        // Rolling window: remove only HOP_SIZE samples to allow overlap
+        samples.erase(samples.begin(), samples.begin() + HOP_SIZE);
     }
 
     return FFTBuffer;
@@ -51,6 +51,11 @@ std::array<double, 2400> SignalProcessor::GetFFTBuffer()
 
 bool SignalProcessor::isFull()
 {
-    if(samples.size() >= 2400) return true;
+    if(samples.size() >= WINDOW_SIZE) return true;
     return false;
+}
+
+void SignalProcessor::clear()
+{
+    samples.clear();
 }
