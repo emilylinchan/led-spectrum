@@ -89,6 +89,9 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
     peakValues.assign(initialMaxBins, 0.0f);
     peakDecay.assign(initialMaxBins, 0.0f);
     waveValues.assign(initialMaxBins, 0.5f);
+    
+    // Winamp specific: velocity for gravity peaks
+    std::vector<float> peakVelocity(initialMaxBins, 0.0f);
 
     const struct ThemeModeManager themeModeManager[] = {
         {"Default Mode", ThemeMode::Mode0},
@@ -107,6 +110,10 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
     bool themeChanged = true;
     static bool lastMState = false;
 
+    // AGC / Rolling Normalization variables
+    float rollingMax = 60.0f; // Start at 60dB baseline
+    const float noiseFloor = 20.0f;
+
     while (AudioEngine::Get().IsRunning()) {
         // Handle Theme Switching
         size_t index0 = 0;
@@ -118,7 +125,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                 strcpy_s((char*)jsonFileReader.currentTheme.themeId, sizeof(jsonFileReader.currentTheme.themeId), jsonFileReader.themes.at(index0).themeId);
                 strcpy_s((char*)jsonFileReader.currentTheme.themeMode, sizeof(jsonFileReader.currentTheme.themeMode), jsonFileReader.themes.at(index0).themeMode);
                 themeChanged = true;
-                break; // Key Priority
+                break; 
             }
             index0++;
         }
@@ -133,19 +140,16 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                 tmIndex++;
             }
             themeChanged = false;
-            
-            // Recalculate bars and clear screen
             N_BARS = (themeMode == ThemeMode::Mode5 || themeMode == ThemeMode::Mode6) ? (termWidth / 3) : ((termWidth - 1) / 2);
             if (N_BARS < 1) N_BARS = 1;
             int resizeMaxBins = std::max(numBins, N_BARS);
             barValues.assign(resizeMaxBins, 0.0f);
             peakValues.assign(resizeMaxBins, 0.0f);
-            peakDecay.assign(resizeMaxBins, 0.0f);
+            peakVelocity.assign(resizeMaxBins, 0.0f);
             waveValues.assign(resizeMaxBins, 0.5f);
             std::cout << "\033[2J" << std::flush;
         }
 
-        // Handle Oscilloscope Toggle
         bool currentMState = (GetAsyncKeyState('M') & 0x8000) != 0;
         if (currentMState && !lastMState) {
             oscilloscopeMode = !oscilloscopeMode;
@@ -153,23 +157,18 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
         }
         lastMState = currentMState;
 
-        // Handle Resize
         if (frameCount % 30 == 0) {
             GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
             int newWidth = csbi.srWindow.Right - csbi.srWindow.Left + 1;
             int newHeight = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
-            
             if (newWidth != termWidth || newHeight != termHeight) {
-                termWidth = newWidth;
-                termHeight = newHeight;
+                termWidth = newWidth; termHeight = newHeight;
                 numBins = termWidth * 2;
                 N_BARS = (themeMode == ThemeMode::Mode5 || themeMode == ThemeMode::Mode6) ? (termWidth / 3) : ((termWidth - 1) / 2);
-                if (numBins < 1) numBins = 1;
-                if (N_BARS < 1) N_BARS = 1;
                 int resizeMaxBins = std::max(numBins, N_BARS);
                 barValues.assign(resizeMaxBins, 0.0f);
                 peakValues.assign(resizeMaxBins, 0.0f);
-                peakDecay.assign(resizeMaxBins, 0.0f);
+                peakVelocity.assign(resizeMaxBins, 0.0f);
                 waveValues.assign(resizeMaxBins, 0.5f);
                 frame.reserve(termWidth * termHeight * 10);
                 std::cout << "\033[2J" << std::flush;
@@ -178,80 +177,73 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
         frameCount++;
 
         float masterVol = AudioEngine::Get().GenVolLevel();
-
+        float frameMax = 0.0f;
         bool hasData = false;
+
         {
             std::lock_guard<std::mutex> lock(magMutex);
-
             if (!freq.empty()) {
                 hasData = true;
-                
                 if (!oscilloscopeMode) {
                     for (int i = 0; i < N_BARS; i++) {
                         float fLow = 20.0f * std::pow(20000.0f / 20.0f, (float)i / N_BARS);
                         float fHigh = 20.0f * std::pow(20000.0f / 20.0f, (float)(i + 1) / N_BARS);
-                        
                         double binStart = (double)fLow * (double)(freq.size() - 1) / (sampleRate / 2.0);
                         double binEnd = (double)fHigh * (double)(freq.size() - 1) / (sampleRate / 2.0);
-                        
-                        int iStart = (int)std::floor(binStart);
-                        int iEnd = (int)std::ceil(binEnd);
-                        
-                        iStart = std::max(0, std::min(iStart, (int)freq.size() - 1));
-                        iEnd = std::max(0, std::min(iEnd, (int)freq.size() - 1));
+                        int iStart = std::max(0, std::min((int)std::floor(binStart), (int)freq.size() - 1));
+                        int iEnd = std::max(0, std::min((int)std::ceil(binEnd), (int)freq.size() - 1));
                         
                         double pVal = -100.0; 
-                        if (iStart == iEnd) {
-                            pVal = freq[iStart];
-                        } else {
-                            for (int j = iStart; j <= iEnd; j++) {
-                                if (freq[j] > pVal) pVal = freq[j];
-                            }
+                        for (int j = iStart; j <= iEnd; j++) {
+                            if (freq[j] > pVal) pVal = freq[j];
                         }
 
-                        // Adjust noise floor for clearer separation
-                        double noiseFloor = 25.0; 
-                        double maxVolume = 90.0; 
+                        // Apply Frequency Weighting (Tilt): Boost highs by ~3dB per octave
+                        float tilt = 1.0f + (float)i / (float)N_BARS * 0.7f; 
+                        pVal *= tilt;
 
-                        float percentage = (float)((pVal - noiseFloor) / (maxVolume - noiseFloor));
-                        if (percentage < 0.0f) percentage = 0.0f;
-                        if (percentage > 1.0f) percentage = 1.0f;
+                        if (pVal > frameMax) frameMax = (float)pVal;
 
-                        percentage *= masterVol;
+                        // AGC Logic: Scale relative to rollingMax
+                        float target = (float)((pVal - noiseFloor) / (rollingMax - noiseFloor));
+                        target = std::max(0.0f, std::min(1.0f, target * masterVol));
 
-                        // Advanced smoothing: Fast Attack, Slow Decay
-                        float target = percentage;
+                        // Winamp "Instant Attack, Linear Decay"
                         if (target > barValues[i]) {
-                            // Rise fast (Attack)
-                            barValues[i] = barValues[i] * 0.1f + target * 0.9f;
+                            barValues[i] = target; // Instant rise
                         } else {
-                            // Fall slow (Decay)
-                            barValues[i] = barValues[i] * 0.7f + target * 0.3f;
+                            barValues[i] -= 0.02f; // Linear falloff
+                            if (barValues[i] < 0.0f) barValues[i] = 0.0f;
                         }
 
+                        // Winamp Gravity Peaks
                         if (target >= peakValues[i]) {
                             peakValues[i] = target;
-                            peakDecay[i] = 0.005f; 
+                            peakVelocity[i] = 0.005f; // Reset fall speed
                         } else {
-                            peakValues[i] -= peakDecay[i];
-                            peakDecay[i] *= 1.05f; 
+                            peakVelocity[i] += 0.002f; // Acceleration (Gravity)
+                            peakValues[i] -= peakVelocity[i];
                         }
                         if (peakValues[i] < 0.0f) peakValues[i] = 0.0f;
                     }
+
+                    // Update Rolling Max (Smoothly adapt to loudness)
+                    if (frameMax > rollingMax) {
+                        rollingMax = rollingMax * 0.85f + frameMax * 0.15f; // Quicker adapt up
+                    } else {
+                        rollingMax = rollingMax * 0.9995f + frameMax * 0.0005f; // Very slow decay down
+                    }
+                    if (rollingMax < 45.0f) rollingMax = 45.0f; // Baseline noise floor
+
                 } else if (!wave.empty()) {
                     int offset = 0;
                     for (int j = 0; j < (int)wave.size() - 1 && j < 500; j++) {
-                        if (wave[j] < 0 && wave[j+1] >= 0) {
-                            offset = j;
-                            break;
-                        }
+                        if (wave[j] < 0 && wave[j+1] >= 0) { offset = j; break; }
                     }
-
                     int remainingSamples = (int)wave.size() - offset;
                     for (int i = 0; i < numBins; i++) {
                         int idx = offset + (int)(i * (float)remainingSamples / numBins);
                         if (idx >= (int)wave.size()) idx = (int)wave.size() - 1;
-                        
                         float target = (float)wave[idx] * masterVol;
                         target = std::max(-1.0f, std::min(1.0f, target * 0.9f));
                         float targetCentered = (target + 1.0f) * 0.5f;
@@ -261,10 +253,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
             }
         }
 
-        if (!hasData) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            continue;
-        }
+        if (!hasData) { std::this_thread::sleep_for(std::chrono::milliseconds(10)); continue; }
 
         frame.clear();
         int renderHeight = termHeight - 1;
@@ -277,19 +266,15 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
             for (int row = 0; row < renderHeight; row++) {
                 int blockRow = renderHeight - 1 - row;
                 int dotBase = blockRow * 4;
-
                 for (int col = 0; col < termWidth; col++) {
-                    int binL = col * 2;
-                    int binR = col * 2 + 1;
+                    int binL = col * 2; int binR = col * 2 + 1;
                     unsigned char mask = 0;
-
                     auto drawSegment = [&](int bIdx, int mCol) {
                         float val = waveValues[bIdx];
                         float prevVal = (bIdx > 0) ? waveValues[bIdx - 1] : val;
                         int h1 = (int)(prevVal * (renderHeight * 4 - 1));
                         int h2 = (int)(val * (renderHeight * 4 - 1));
-                        int start = std::min(h1, h2);
-                        int end = std::max(h1, h2);
+                        int start = std::min(h1, h2); int end = std::max(h1, h2);
                         for (int y = start; y <= end; y++) {
                             if (y >= dotBase && y < dotBase + 4) {
                                 int d = y - dotBase;
@@ -301,103 +286,55 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                             }
                         }
                     };
-
-                    drawSegment(binL, 0);
-                    if (binR < numBins) drawSegment(binR, 1);
-
-                    if (mask > 0) {
-                        frame += themeColor;
-                        frame += getBraille(mask);
-                        frame += "\033[0m";
-                    } else {
-                        frame += " ";
-                    }
+                    drawSegment(binL, 0); if (binR < numBins) drawSegment(binR, 1);
+                    if (mask > 0) { frame += themeColor; frame += getBraille(mask); frame += "\033[0m"; }
+                    else frame += " ";
                 }
                 if (row < renderHeight - 1) frame += '\n';
             }
         } else if (themeMode == ThemeMode::Mode5 || themeMode == ThemeMode::Mode6) {
-            // Pink and Gradient Mode Logic (Bars)
             for (int row = 0; row < renderHeight; row++) {
                 int blockRow = renderHeight - 1 - row;
-                
-                // Calculate dynamic color for this row if in Gradient Mode
                 char currentRowColor[64];
                 if (themeMode == ThemeMode::Mode6) {
                     float ratio = (float)blockRow / (float)(renderHeight - 1);
-                    // Fade Green (0,255,0) at bottom (ratio=0) to Red (255,0,0) at top (ratio=1)
-                    int r = (int)(255 * ratio);
-                    int g = (int)(255 * (1.0f - ratio));
-                    int b = 0;
-                    sprintf_s(currentRowColor, sizeof(currentRowColor), "\033[38;2;%d;%d;%dm", r, g, b);
-                } else {
-                    strcpy_s(currentRowColor, sizeof(currentRowColor), themeColor);
-                }
+                    int r = (int)(255 * ratio); int g = (int)(255 * (1.0f - ratio));
+                    sprintf_s(currentRowColor, sizeof(currentRowColor), "\033[38;2;%d;%d;%dm", r, g, 0);
+                } else strcpy_s(currentRowColor, sizeof(currentRowColor), themeColor);
 
                 for (int col = 0; col < termWidth; col++) {
-                    int barIdx = col / 3;
-                    int colInBar = col % 3;
-                    
+                    int barIdx = col / 3; int colInBar = col % 3;
                     if (barIdx < N_BARS && colInBar < 2) {
                         float val = barValues[barIdx];
                         int h = (int)(val * (renderHeight - 1));
-                        float pVal_at_idx = peakValues[barIdx];
-                        int ph = (int)(pVal_at_idx * (renderHeight - 1));
-
-                        if (blockRow <= h) {
-                            frame += currentRowColor;
-                            frame += "█";
-                            frame += "\033[0m";
-                        } else if (blockRow == ph) {
-                            if (themeMode == ThemeMode::Mode6) {
-                                frame += "\033[38;2;128;128;128m"; // Grey peaks for gradient theme
-                            } else {
-                                frame += currentRowColor;
-                            }
-                            frame += "─"; 
-                            frame += "\033[0m";
-                        } else {
-                            frame += " ";
-                        }
-                    } else {
-                        frame += " ";
-                    }
+                        float phVal = peakValues[barIdx];
+                        int ph = (int)(phVal * (renderHeight - 1));
+                        if (blockRow <= h) { frame += currentRowColor; frame += "█"; frame += "\033[0m"; }
+                        else if (blockRow == ph) {
+                            if (themeMode == ThemeMode::Mode6) frame += "\033[38;2;128;128;128m";
+                            else frame += currentRowColor;
+                            frame += "─"; frame += "\033[0m";
+                        } else frame += " ";
+                    } else frame += " ";
                 }
                 if (row < renderHeight - 1) frame += '\n';
             }
         } else {
-            // Original Modes Logic
-            const char* UTF8Codes[] = {
-                "─", "│", "─", "│", "┌", "┐", "└", "┘", "├", "┤", "┬", "┴", "┼",
-                "♪", "♫", "♬", "♩", "⣿", "⣶", "⣤", "⣀", "⡇", "#", "a", "b", "c", "e",
-                "f", "g", "h", "♬", "♬", " ", "C", "R", "E", "D", "I", "T", "S", " ", "♬", "♬",
-                " ", "♬", "C", "o", "l", "o", "r", "s", " ", "B", "y", " ", "J", "o", "e", ".", "r", "♬",
-                " ", "♬", "V", "i", "s", "u", "a", "l", "i", "z", "e", "r", " ", "B", "y", " ", "M", "j", "♬"
-            };
+            const char* UTF8Codes[] = { "─", "│", "─", "│", "┌", "┐", "└", "┘", "├", "┤", "┬", "┴", "┼", "♪", "♫", "♬", "♩", "⣿", "⣶", "⣤", "⣀", "⡇", "#" };
             size_t sizeofCodes = sizeof(UTF8Codes) / sizeof(UTF8Codes[0]);
-
             for (int row = renderHeight; row > 0; row--) {
                 for (int i = 0; i < N_BARS; i++) {
                     int barHeight = (int)(barValues[i] * renderHeight);
                     float rowA = float(row) / float(renderHeight);
-                    float rowB = -rowA + 1.0f;
-                    float rowC = -fabs(rowA - 0.5f) + 1.0f;
-                    float effect = 1.0f;
-                    if (themeMode == ThemeMode::Mode4) effect = barValues[i] * 2.5f;
-
-                    int color[3] = {
-                        (int)((255 * rowA * effect) * jsonFileReader.currentTheme.colorRed),
-                        (int)((255 * rowB * effect) * jsonFileReader.currentTheme.colorGreen),
-                        (int)((255 * rowC * effect) * jsonFileReader.currentTheme.colorBlue)
-                    };
-
+                    float rowB = -rowA + 1.0f; float rowC = -fabs(rowA - 0.5f) + 1.0f;
+                    float effect = (themeMode == ThemeMode::Mode4) ? barValues[i] * 2.5f : 1.0f;
+                    int color[3] = { (int)((255 * rowA * effect) * jsonFileReader.currentTheme.colorRed), (int)((255 * rowB * effect) * jsonFileReader.currentTheme.colorGreen), (int)((255 * rowC * effect) * jsonFileReader.currentTheme.colorBlue) };
                     int barTop = 0, barBottom = 0;
                     if (themeMode == ThemeMode::Mode1) { barTop = (renderHeight - barHeight) / 2; barBottom = renderHeight - barTop; }
                     else if (themeMode == ThemeMode::Mode2) { barTop = barHeight; barBottom = barHeight; }
                     else if (themeMode == ThemeMode::Mode3) { int bh1 = renderHeight - barHeight; barTop = (renderHeight - bh1) / 2; barBottom = renderHeight - barTop; }
-
                     char character[2] = {jsonFileReader.currentTheme.customCharacter, '\0'};
                     char temp[128];
-                    
                     if (themeMode == ThemeMode::Mode0) {
                         if (row <= barHeight) sprintf_s(temp, sizeof(temp), "\033[38;2;%d;%d;%dm%s\033[0m", color[0], color[1], color[2], (jsonFileReader.currentTheme.useRandomCharacters) ? UTF8Codes[rand() % sizeofCodes] : character);
                         else sprintf_s(temp, sizeof(temp), " ");
@@ -407,16 +344,13 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                     } else if (themeMode == ThemeMode::Mode4) {
                         sprintf_s(temp, sizeof(temp), "\033[38;2;%d;%d;%dm%s\033[0m", color[0], color[1], color[2], (jsonFileReader.currentTheme.useRandomCharacters) ? UTF8Codes[rand() % sizeofCodes] : character);
                     }
-                    frame += temp;
-                    frame += " ";
+                    frame += temp; frame += " ";
                 }
                 if (row > 1) frame += '\n';
             }
         }
-
         std::cout << "\033[H" << frame << "\033[J" << std::flush;        
         std::this_thread::sleep_for(std::chrono::milliseconds(16)); 
     }
-    
     std::cout << "\033[2J\033[H\033[?1049l\033[?25h" << std::flush;
 }
