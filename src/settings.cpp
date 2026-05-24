@@ -58,18 +58,7 @@ int __cdecl JsonFileFinder::FindJsonFiles(_In_ JsonFileReader* fileReader) {
     intptr_t handle;
     std::vector<struct Theme> themes;
 
-    // 1. Inject the default Pink Theme at index 0
-    struct Theme pinkTheme{};
-    strcpy_s(pinkTheme.themeName, "Pink Theme");
-    strcpy_s(pinkTheme.themeId, "pink-default");
-    strcpy_s(pinkTheme.themeMode, "Pink Mode");
-    pinkTheme.colorRed = 1.0;
-    pinkTheme.colorGreen = 0.41; 
-    pinkTheme.colorBlue = 0.70;  
-    pinkTheme.key = 49; // Key '1'
-    themes.push_back(pinkTheme);
-
-    // 2. Inject the default Gradient Theme at index 1
+    // 1. Inject the default Gradient Theme at index 0 (Now default startup theme)
     struct Theme gradientTheme{};
     strcpy_s(gradientTheme.themeName, "Gradient Theme");
     strcpy_s(gradientTheme.themeId, "gradient-default");
@@ -77,8 +66,19 @@ int __cdecl JsonFileFinder::FindJsonFiles(_In_ JsonFileReader* fileReader) {
     gradientTheme.colorRed = 1.0;
     gradientTheme.colorGreen = 1.0; 
     gradientTheme.colorBlue = 1.0;  
-    gradientTheme.key = 50; // Key '2'
+    gradientTheme.key = 49; // Key '1'
     themes.push_back(gradientTheme);
+
+    // 2. Inject the default Pink Theme at index 1
+    struct Theme pinkTheme{};
+    strcpy_s(pinkTheme.themeName, "Pink Theme");
+    strcpy_s(pinkTheme.themeId, "pink-default");
+    strcpy_s(pinkTheme.themeMode, "Pink Mode");
+    pinkTheme.colorRed = 1.0;
+    pinkTheme.colorGreen = 0.41; 
+    pinkTheme.colorBlue = 0.70;  
+    pinkTheme.key = 50; // Key '2'
+    themes.push_back(pinkTheme);
 
     // 3. Scan for other themes
     handle = _findfirst("themes\\*.json", &jsonFilesFinder);
@@ -135,7 +135,7 @@ int __cdecl JsonFileFinder::FindJsonFiles(_In_ JsonFileReader* fileReader) {
         fclose(configs);
     }
 
-    // 5. Set Pink Theme as current and exit
+    // 5. Set Gradient Theme as current and exit
     fileReader->currentTheme = themes.at(0);
     fileReader->themes = themes;
 
