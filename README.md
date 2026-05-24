@@ -23,9 +23,18 @@
 
 </div>
 
-## System Architecture
-**Spectrum** captures raw system audio directly from the soundcard, processes it through a real-time DSP pipeline, and renders it to the console without screen tearing.
+## Overview
+**Spectrum** is a high-performance terminal audio visualizer built with minimalism and accuracy in mind. It captures system audio via WASAPI, processes it using the industry-standard FFTW3 library, and renders a fluid, high-contrast spectrum directly in your Windows console.
 
+### Key Features
+*   **Minimalist UI:** Focus on the music with a clean, zero-clutter interface.
+*   **Professional DSP:** Featuring Hann windowing and perceptual frequency weighting for superior accuracy.
+*   **Dynamic Themes:** Seamlessly switch between built-in and custom JSON themes using runtime hotkeys.
+*   **Oscilloscope Mode:** Toggle a real-time Braille-based waveform view with a single keypress.
+*   **Automatic Gain Control (AGC):** Rolling normalization ensures the bars always fill the screen nicely regardless of volume.
+*   **High Performance:** ~0% CPU usage on modern machines with a tiny 0.4 MB memory footprint.
+
+## System Architecture
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': { 'fontFamily': 'Comic Sans MS, Comic Neue, Chalkboard SE, cursive', 'lineColor': '#000000', 'primaryTextColor': '#000000', 'edgeLabelBackground':'#ffffff'}, 'flowchart': {'curve': 'basis'}}}%%
 graph LR
@@ -33,127 +42,75 @@ graph LR
     
     subgraph T1 [Thread 1: Audio Capture]
         A([WASAPI]) --> B[Accumulate<br/>Audio]
-        B --> C{2400<br/>Samples?}
+        B --> C{Buffer Full?}
         C -->|No| B
-        C -->|Yes| D[Lock Mutex &<br/>Notify Ready]
-        D -->|Reset Index| B
+        C -->|Yes| D[Lock Mutex &<br/>Update State]
+        D -->|Reset| B
     end
 
     subgraph Shared [Shared State]
-        M[(Thread-Safe<br/>readyBuffer)]
+        M[(FFT & Waveform<br/>Buffers)]
+        TH[(Current Theme<br/>Settings)]
     end
 
     subgraph T2 [Thread 2: DSP & Render]
-        E{Buffer<br/>Ready?}
-        
-        %% The true self loop (Mermaid will force this into a square)
-        E -->|Wait| E
-        
-        E -->|Yes| F[Execute FFTW3<br/>& Decibel Math]
-        F --> G[Group to a # of Bins]
-        G --> H([Draw ASCII Bars<br/>Zero-Flicker])
-        H --> I[Reset Flag]
+        E{Check Hotkeys?}
+        E -->|Theme Change| TH
+        E --> F[Execute FFTW3<br/>& Power Normalization]
+        F --> G[Apply Windowing<br/>& Perceptual Tilt]
+        G --> H[AGC / Gamma Scaling]
+        H --> I([Draw ANSI Bars /<br/>Braille Waveform])
         I -->|Loop| E
     end
 
     %% Data flow across threads
     D == Copy Data ==> M
-    M == Read Data ==> E
+    M == Read Data ==> F
+    TH == Load Logic ==> I
 ```
 
 ## The DSP Engine
-At the core of the visualizer is the **Discrete Fourier Transform (DFT)**, powered by the [FFTW3 C-API](https://www.fftw.org/). <br>
-The engine takes a time-domain window of audio samples and transforms it into a number of distinct frequency magnitudes.
+At the core of the visualizer is the **Discrete Fourier Transform (DFT)**, powered by the [FFTW3 C-API](https://www.fftw.org/). 
 
-$$X_k = \sum_{n=0}^{N-1} x_n e^{-i 2\pi k n / N}$$
+To achieve a "Winamp-level" of responsiveness and accuracy, we apply:
+1. **Hann Windowing:** Eliminates spectral leakage for sharp, clean frequency bins.
+2. **Instant Attack / Linear Decay:** Bars rise instantly to peaks and fall with realistic, snappy physics.
+3. **Perceptual Weighting:** High frequencies are boosted to match the human ear's sensitivity (Equal-loudness curves).
+4. **Gamma Contrast:** Non-linear scaling crushes background noise while making main transients "pop."
 
-<img width="1251" height="300" alt="image" src="https://github.com/user-attachments/assets/8cda5963-9526-4b9e-8dd5-b2c83174b093" /> <br>
+## Quick Start
+1. Download the latest release from the [Releases Page](https://github.com/majockbim/spectrum/releases).
+2. Extract the ZIP and run `spectrum.exe`.
+3. **Controls:**
+    *   **1 - 9:** Switch Themes (1: Pink, 2: Gradient, 3+: Custom).
+    *   **M:** Toggle Oscilloscope Mode.
 
-To make the output visually accurate to human hearing:
-1. **Data Scrubbing:** Acts as a firewall against WASAPI driver glitches, dropping `inf`, `NaN`, and integer overflows.
-2. **Decibel Conversion:** Raw amplitudes are normalized and converted to a logarithmic $\text{log}_{10}$ scale.
-3. **Frequency Binning:** The pitches are grouped into visual UI bins by taking the maximum peak in each frequency range.
-4. **Rolling Window FFT:** The engine uses an oversampled sliding window with a Hann window function to ensure smooth transitions between frames.
+## Custom Themes
+Spectrum supports fully customizable JSON themes. You can change colors, visualizer modes, and even the characters used to draw the bars.
+Check out the **[THEMES.md](THEMES.md)** guide for instructions on creating your own!
 
-## Performance
-Benchmarked on an AMD Ryzen 5 7520U (2.80 GHz) at a 2400-sample window size:
-
-| Metric | Value |
-|---|---|
-| CPU usage | ~0% |
-| Memory footprint | 0.4 MB |
-
-*spectrum is designed to be lightweight, it should never compete with your music.*
-
-## Quick Start (Casuals)
-For those who just want to run the visualizer without compiling:
-1. Download the latest release (**v1.1.0**) from the [Releases Page](https://github.com/majockbim/spectrum/releases).
-2. Extract the ZIP file to your preferred location.
-3. Run `spectrum.exe`.
-4. Play some music and enjoy the show!
-
-## Getting Started
-**Prerequisites**
-* **Windows 10/11**
-* **CMake** (v3.10+)
-* **FFTW3** (Pre-compiled binaries included in `third_party/`)
-* **yyjson** (included in `third_party/`)
-* **OpenMP** (Usually included with your compiler)
-
-## Building from Source (Contributors)
-First, clone the repository:
-```bash
-git clone https://github.com/majockbim/spectrum
-cd spectrum
+## Project Structure
+```text
+spectrum/
+├── inc/                    # Header files
+│   ├── audio/              # WASAPI Engine
+│   ├── math/               # FFT logic
+│   ├── processing/         # Audio signal processing
+│   ├── settings/           # JSON/Theme management
+│   └── ui/                 # Console rendering
+├── src/                    # Source files
+├── themes/                 # Example custom themes
+├── resources/              # App icons and metadata
+├── third_party/            # FFTW3 and yyjson libraries
+├── THEMES.md               # Theme creation guide
+└── CONTRIBUTING.md         # Build and dev instructions
 ```
 
-### Option 1: g++ (MinGW-w64)
-Best for those using MSYS2 or a standalone MinGW installation.
-```bash
-# Generate build files
-cmake -B build_mingw -G "MinGW Makefiles"
+## Contributing & Building
+If you'd like to build from source or contribute to the project, please see **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
-# Compile
-cmake --build build_mingw
-
-# Run!
-.\build_mingw\spectrum.exe
-```
-
-### Option 2: cl (MSVC Command Line)
-Best for those who prefer the Microsoft C++ compiler but want to stay in the terminal. <br>
-**Note**: Because this uses the Visual Studio CMake generator, you can run these commands directly in standard PowerShell.
-```bash
-# Generate build files (Ensure x64 architecture)
-cmake -S . -B build_msvc -G "Visual Studio 17 2022" -A x64
-
-# Compile
-cmake --build build_msvc --config Release
-
-# Run!!
-.\build_msvc\Release\spectrum.exe
-```
-
-### Option 3: Visual Studio (MSVC IDE)
-The easiest way for Windows developers.
-1. Open Visual Studio.
-2. Select **Open a local folder** and choose the `spectrum` directory.
-3. Visual Studio will automatically detect `CMakeLists.txt` and configure the project.
-4. Select `spectrum.exe` in the "Select Startup Item" dropdown.
-5. Press **F5** to build and run!!!
-
-## References & Libraries
-
-**Documentation & Readings:** <br>
-[WASAPI: IAudioEndpointVolume](https://learn.microsoft.com/en-us/windows/win32/api/endpointvolume/nn-endpointvolume-iaudioendpointvolume) <br>
-[WASAPI: audioclient.h](https://learn.microsoft.com/en-us/windows/win32/api/audioclient/) <br>
-[WASAPI: IAudioClient::Initialize](https://learn.microsoft.com/en-us/windows/win32/api/audioclient/nf-audioclient-iaudioclient-initialize) [4] <br>
-[Fast Fourier Transform (Wiki)](https://en.wikipedia.org/wiki/Fast_Fourier_transform) <br>
-
-**Third-Party Libraries**: <br>
-[FFTW (org)](https://www.fftw.org/) <br>
-[FFTW (GitHub)](https://github.com/FFTW/fftw3) <br>
-[yyjson (GitHub)](https://github.com/ibireme/yyjson) 
+## References
+[FFTW (org)](https://www.fftw.org/) | [yyjson (GitHub)](https://github.com/ibireme/yyjson) | [WASAPI Documentation](https://learn.microsoft.com/en-us/windows/win32/api/audioclient/)
 
 ## Contributors
 A massive thank you to everyone who has helped build and optimize spectrum. <br>
