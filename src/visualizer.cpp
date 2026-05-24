@@ -140,18 +140,16 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
             N_BARS = (themeMode == Mode5 || themeMode == Mode6) ? (termWidth / 3) : ((termWidth - 1) / 2);
             if (N_BARS < 1) N_BARS = 1;
             int resizeMaxBins = std::max(numBins, N_BARS);
-            barValues.assign(resizeMaxBins, 0.0f);
-            peakValues.assign(resizeMaxBins, 0.0f);
-            peakVelocity.assign(resizeMaxBins, 0.0f);
-            peakHold.assign(resizeMaxBins, 0);
-            waveValues.assign(resizeMaxBins, 0.5f);
-            std::cout << "\033[2J" << std::flush;
+            barValues.resize(resizeMaxBins, 0.0f);
+            peakValues.resize(resizeMaxBins, 0.0f);
+            peakVelocity.resize(resizeMaxBins, 0.0f);
+            peakHold.resize(resizeMaxBins, 0);
+            waveValues.resize(resizeMaxBins, 0.5f);
         }
 
         bool currentMState = (GetAsyncKeyState('M') & 0x8000) != 0;
         if (currentMState && !lastMState) {
             oscilloscopeMode = !oscilloscopeMode;
-            std::cout << "\033[2J" << std::flush;
         }
         lastMState = currentMState;
 
@@ -294,6 +292,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                     if (mask > 0) { frame += themeColor; frame += getBraille(mask); frame += "\033[0m"; }
                     else frame += " ";
                 }
+                frame += "\033[K";
                 if (row < renderHeight - 1) frame += '\n';
             }
         } else if (themeMode == Mode5 || themeMode == Mode6) {
@@ -325,6 +324,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                         }
                     } else frame += " ";
                 }
+                frame += "\033[K";
                 if (row < renderHeight - 1) frame += '\n';
             }
         } else {
@@ -340,7 +340,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                     int barTop = 0, barBottom = 0;
                     if (themeMode == Mode1) { barTop = (renderHeight - barHeight) / 2; barBottom = renderHeight - barTop; }
                     else if (themeMode == Mode2) { barTop = barHeight; barBottom = barHeight; }
-                    else if (themeMode == Mode3) { int bh1 = renderHeight - barHeight; barTop = (renderHeight - bh1) / 2; barBottom = renderHeight - barTop; }
+                    else if (themeMode == ThemeMode::Mode3) { int bh1 = renderHeight - barHeight; barTop = (renderHeight - bh1) / 2; barBottom = renderHeight - barTop; }
                     char character[2] = {jsonFileReader.currentTheme.customCharacter, '\0'};
                     char temp[128];
                     if (themeMode == Mode0) {
@@ -354,6 +354,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                     }
                     frame += temp; frame += " ";
                 }
+                frame += "\033[K";
                 if (row > 1) frame += '\n';
             }
         }
