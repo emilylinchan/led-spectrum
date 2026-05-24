@@ -183,8 +183,9 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                 hasData = true;
                 if (!oscilloscopeMode) {
                     for (int i = 0; i < N_BARS; i++) {
-                        float fLow = 20.0f * std::pow(20000.0f / 20.0f, (float)i / N_BARS);
-                        float fHigh = 20.0f * std::pow(20000.0f / 20.0f, (float)(i + 1) / N_BARS);
+                        // Map bars to 20Hz - 16kHz range (most audio is silent above 16k)
+                        float fLow = 20.0f * std::pow(16000.0f / 20.0f, (float)i / N_BARS);
+                        float fHigh = 20.0f * std::pow(16000.0f / 20.0f, (float)(i + 1) / N_BARS);
                         double binStart = (double)fLow * (double)(freq.size() - 1) / (sampleRate / 2.0);
                         double binEnd = (double)fHigh * (double)(freq.size() - 1) / (sampleRate / 2.0);
                         int iStart = std::max(0, std::min((int)std::floor(binStart), (int)freq.size() - 1));
@@ -228,6 +229,15 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                             peakValues[i] = barValues[i];
                             peakVelocity[i] = 0.00f;
                         }
+                    }
+
+                    // Horizontal spectral smoothing (Edges included)
+                    if (N_BARS > 2) {
+                        barValues[0] = barValues[0] * 0.8f + barValues[1] * 0.2f;
+                        for (int i = 1; i < N_BARS - 1; i++) {
+                            barValues[i] = barValues[i] * 0.6f + (barValues[i-1] + barValues[i+1]) * 0.2f;
+                        }
+                        barValues[N_BARS - 1] = barValues[N_BARS - 1] * 0.8f + barValues[N_BARS - 2] * 0.2f;
                     }
 
                     if (frameMax > rollingMax) {
