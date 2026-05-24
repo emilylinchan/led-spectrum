@@ -1,3 +1,4 @@
+
 <div align="center">
 
   <img width="520" alt="spectrum - Copy" src="https://github.com/user-attachments/assets/aeecb34f-0132-4a16-acf4-084cd1a19049" />
@@ -18,7 +19,7 @@
   <br>
   <br>
 
-  <img width="1920" alt="v1 2 0 release gif" src="https://github.com/user-attachments/assets/28256318-4d52-4756-aa97-455ad25e2e49" />
+  <img width="1920" alt="v1 2 0 release transparent" src="https://github.com/user-attachments/assets/8f22bc23-f894-4904-a5a0-786bb5c7447b" />
 
 
 </div>
