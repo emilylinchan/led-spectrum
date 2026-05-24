@@ -18,7 +18,6 @@
 */
 
 #include "../inc/ui/visualizer.hpp"
-#include <cstring>
 
 #define AsciiRgb(k, r, g, b) "\033[" #k ";2;" #r ";" #g ";" #b "m"
 

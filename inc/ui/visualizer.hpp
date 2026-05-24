@@ -34,6 +34,7 @@
 #include <stdlib.h>
 #include <conio.h>
 #include <winuser.h>
+#include <cstring>
 
 class RenderEqualizer {
 public:
