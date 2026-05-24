@@ -1,0 +1,13 @@
+{
+    "theme.name": "Forest Fire",
+    "theme.id": "forest-fire",
+    "theme.properties": {
+        "spectrum.tui.colorR": 1.0,
+        "spectrum.tui.colorG": 0.5,
+        "spectrum.tui.colorB": 0.0,
+        "spectrum.tui.useRandomCharacters": false,
+        "spectrum.tui.customCharacter": "*",
+        "spectrum.tui.visualizerMode": "Mode 1",
+        "spectrum.tui.key": 52
+    }
+}

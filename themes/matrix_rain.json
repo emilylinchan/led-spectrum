@@ -1,0 +1,13 @@
+{
+    "theme.name": "Matrix Rain",
+    "theme.id": "matrix-rain",
+    "theme.properties": {
+        "spectrum.tui.colorR": 0.0,
+        "spectrum.tui.colorG": 1.0,
+        "spectrum.tui.colorB": 0.2,
+        "spectrum.tui.useRandomCharacters": true,
+        "spectrum.tui.customCharacter": "|",
+        "spectrum.tui.visualizerMode": "Default Mode",
+        "spectrum.tui.key": 53
+    }
+}

@@ -1,0 +1,13 @@
+{
+    "theme.name":"Music Visualizer Theme",
+    "theme.id":"music-visualizer-theme",
+    "theme.properties": {
+        "spectrum.tui.colorR":1.0,
+        "spectrum.tui.colorG":0.0,
+        "spectrum.tui.colorB":1.0,
+        "spectrum.tui.useRandomCharacters":true,
+        "spectrum.tui.customCharacter":"*",
+        "spectrum.tui.visualizerMode":"Mode 3",
+        "spectrum.tui.key":56
+    }
+}
