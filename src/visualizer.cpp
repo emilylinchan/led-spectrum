@@ -269,73 +269,78 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
         int renderHeight = termHeight - 1;
         if (renderHeight < 1) renderHeight = 1;
 
-        if (themeMode == (ThemeMode)5) {
-            // Pink Mode Logic
-            char pinkColor[64];
-            sprintf_s(pinkColor, sizeof(pinkColor), "\033[38;2;%d;%d;%dm", (int)(jsonFileReader.currentTheme.colorRed * 255), (int)(jsonFileReader.currentTheme.colorGreen * 255), (int)(jsonFileReader.currentTheme.colorBlue * 255));
+        char themeColor[64];
+        sprintf_s(themeColor, sizeof(themeColor), "\033[38;2;%d;%d;%dm", (int)(jsonFileReader.currentTheme.colorRed * 255), (int)(jsonFileReader.currentTheme.colorGreen * 255), (int)(jsonFileReader.currentTheme.colorBlue * 255));
 
+        if (oscilloscopeMode) {
             for (int row = 0; row < renderHeight; row++) {
                 int blockRow = renderHeight - 1 - row;
                 int dotBase = blockRow * 4;
 
                 for (int col = 0; col < termWidth; col++) {
-                    if (!oscilloscopeMode) {
-                        int barIdx = col / 3;
-                        int colInBar = col % 3;
-                        
-                        if (barIdx < N_BARS && colInBar < 2) {
-                            float val = barValues[barIdx];
-                            int h = (int)(val * (renderHeight - 1));
-                            
-                            float pVal_at_idx = peakValues[barIdx];
-                            int ph = (int)(pVal_at_idx * (renderHeight - 1));
+                    int binL = col * 2;
+                    int binR = col * 2 + 1;
+                    unsigned char mask = 0;
 
-                            if (blockRow <= h) {
-                                frame += pinkColor;
-                                frame += "█";
-                                frame += "\033[0m";
-                            } else if (blockRow == ph) {
-                                frame += pinkColor;
-                                frame += "─"; // Winamp dash
-                                frame += "\033[0m";
-                            } else {
-                                frame += " ";
-                            }
-                        } else {
-                            frame += " ";
-                        }
-                    } else {
-                        int binL = col * 2;
-                        int binR = col * 2 + 1;
-                        unsigned char mask = 0;
-
-                        auto drawSegment = [&](int bIdx, int mCol) {
-                            float val = waveValues[bIdx];
-                            float prevVal = (bIdx > 0) ? waveValues[bIdx - 1] : val;
-                            int h1 = (int)(prevVal * (renderHeight * 4 - 1));
-                            int h2 = (int)(val * (renderHeight * 4 - 1));
-                            int start = std::min(h1, h2);
-                            int end = std::max(h1, h2);
-                            for (int y = start; y <= end; y++) {
-                                if (y >= dotBase && y < dotBase + 4) {
-                                    int d = y - dotBase;
-                                    if (mCol == 0) {
-                                        if (d == 0) mask |= 0x40; else if (d == 1) mask |= 0x04; else if (d == 2) mask |= 0x02; else if (d == 3) mask |= 0x01;
-                                    } else {
-                                        if (d == 0) mask |= 0x80; else if (d == 1) mask |= 0x20; else if (d == 2) mask |= 0x10; else if (d == 3) mask |= 0x08;
-                                    }
+                    auto drawSegment = [&](int bIdx, int mCol) {
+                        float val = waveValues[bIdx];
+                        float prevVal = (bIdx > 0) ? waveValues[bIdx - 1] : val;
+                        int h1 = (int)(prevVal * (renderHeight * 4 - 1));
+                        int h2 = (int)(val * (renderHeight * 4 - 1));
+                        int start = std::min(h1, h2);
+                        int end = std::max(h1, h2);
+                        for (int y = start; y <= end; y++) {
+                            if (y >= dotBase && y < dotBase + 4) {
+                                int d = y - dotBase;
+                                if (mCol == 0) {
+                                    if (d == 0) mask |= 0x40; else if (d == 1) mask |= 0x04; else if (d == 2) mask |= 0x02; else if (d == 3) mask |= 0x01;
+                                } else {
+                                    if (d == 0) mask |= 0x80; else if (d == 1) mask |= 0x20; else if (d == 2) mask |= 0x10; else if (d == 3) mask |= 0x08;
                                 }
                             }
-                        };
-                        drawSegment(binL, 0);
-                        if (binR < numBins) drawSegment(binR, 1);
-                        if (mask > 0) {
-                            frame += pinkColor;
-                            frame += getBraille(mask);
+                        }
+                    };
+
+                    drawSegment(binL, 0);
+                    if (binR < numBins) drawSegment(binR, 1);
+
+                    if (mask > 0) {
+                        frame += themeColor;
+                        frame += getBraille(mask);
+                        frame += "\033[0m";
+                    } else {
+                        frame += " ";
+                    }
+                }
+                if (row < renderHeight - 1) frame += '\n';
+            }
+        } else if (themeMode == (ThemeMode)5) {
+            // Pink Mode Logic (Bars)
+            for (int row = 0; row < renderHeight; row++) {
+                int blockRow = renderHeight - 1 - row;
+                for (int col = 0; col < termWidth; col++) {
+                    int barIdx = col / 3;
+                    int colInBar = col % 3;
+                    
+                    if (barIdx < N_BARS && colInBar < 2) {
+                        float val = barValues[barIdx];
+                        int h = (int)(val * (renderHeight - 1));
+                        float pVal_at_idx = peakValues[barIdx];
+                        int ph = (int)(pVal_at_idx * (renderHeight - 1));
+
+                        if (blockRow <= h) {
+                            frame += themeColor;
+                            frame += "█";
+                            frame += "\033[0m";
+                        } else if (blockRow == ph) {
+                            frame += themeColor;
+                            frame += "─"; 
                             frame += "\033[0m";
                         } else {
                             frame += " ";
                         }
+                    } else {
+                        frame += " ";
                     }
                 }
                 if (row < renderHeight - 1) frame += '\n';
