@@ -95,21 +95,24 @@ int __cdecl JsonFileFinder::FindJsonFiles(_In_ JsonFileReader* fileReader) {
                 continue;
             } 
 
-            struct JsonValue JsonThemeOptions[] = {
-                {VT_Double, {.doubleValue = 1.0}, nullptr, &oneTheme.colorRed, "spectrum.tui.colorR", "theme.properties"},
-                {VT_Double, {.doubleValue = 1.0}, nullptr, &oneTheme.colorGreen, "spectrum.tui.colorG", "theme.properties"},
-                {VT_Double, {.doubleValue = 1.0}, nullptr, &oneTheme.colorBlue, "spectrum.tui.colorB", "theme.properties"},
-                {VT_Boolean, {.booleanValue = false}, nullptr, &oneTheme.useRandomCharacters, "spectrum.tui.useRandomCharacters", "theme.properties"},
-                {VT_Character, {.characterValue = '='}, nullptr, &oneTheme.customCharacter, "spectrum.tui.customCharacter", "theme.properties"},
-                {VT_String, {.stringValue = "Default Mode"}, nullptr, &oneTheme.themeMode, "spectrum.tui.visualizerMode", "theme.properties"},
-                {VT_Int, {.intValue = 0}, nullptr, &oneTheme.key, "spectrum.tui.key", "theme.properties"},
-                {VT_String, {.stringValue = "**Untitled-Theme**"}, nullptr, &oneTheme.themeName, "theme.name", "root"},
-                {VT_String, {.stringValue = "**No-ID**"}, nullptr, &oneTheme.themeId, "theme.id", "root"}
-            };
+            // C++17 compatible manual initialization
+            JsonValue jRed, jGreen, jBlue, jRand, jChar, jMode, jKey, jName, jId;
+            
+            jRed.valueType = VT_Double; jRed.defaultValue.doubleValue = 1.0; jRed.pointer = nullptr; jRed.pointer1 = &oneTheme.colorRed; jRed.name = "spectrum.tui.colorR"; jRed.root = "theme.properties";
+            jGreen.valueType = VT_Double; jGreen.defaultValue.doubleValue = 1.0; jGreen.pointer = nullptr; jGreen.pointer1 = &oneTheme.colorGreen; jGreen.name = "spectrum.tui.colorG"; jGreen.root = "theme.properties";
+            jBlue.valueType = VT_Double; jBlue.defaultValue.doubleValue = 1.0; jBlue.pointer = nullptr; jBlue.pointer1 = &oneTheme.colorBlue; jBlue.name = "spectrum.tui.colorB"; jBlue.root = "theme.properties";
+            jRand.valueType = VT_Boolean; jRand.defaultValue.booleanValue = false; jRand.pointer = nullptr; jRand.pointer1 = &oneTheme.useRandomCharacters; jRand.name = "spectrum.tui.useRandomCharacters"; jRand.root = "theme.properties";
+            jChar.valueType = VT_Character; jChar.defaultValue.characterValue = '='; jChar.pointer = nullptr; jChar.pointer1 = &oneTheme.customCharacter; jChar.name = "spectrum.tui.customCharacter"; jChar.root = "theme.properties";
+            jMode.valueType = VT_String; jMode.defaultValue.stringValue = "Default Mode"; jMode.pointer = nullptr; jMode.pointer1 = &oneTheme.themeMode; jMode.name = "spectrum.tui.visualizerMode"; jMode.root = "theme.properties";
+            jKey.valueType = VT_Int; jKey.defaultValue.intValue = 0; jKey.pointer = nullptr; jKey.pointer1 = &oneTheme.key; jKey.name = "spectrum.tui.key"; jKey.root = "theme.properties";
+            jName.valueType = VT_String; jName.defaultValue.stringValue = "**Untitled-Theme**"; jName.pointer = nullptr; jName.pointer1 = &oneTheme.themeName; jName.name = "theme.name"; jName.root = "root";
+            jId.valueType = VT_String; jId.defaultValue.stringValue = "**No-ID**"; jId.pointer = nullptr; jId.pointer1 = &oneTheme.themeId; jId.name = "theme.id"; jId.root = "root";
+
+            struct JsonValue JsonThemeOptions[] = { jRed, jGreen, jBlue, jRand, jChar, jMode, jKey, jName, jId };
 
             if (fileReader->ReadSettings(jsonFile, JsonThemeOptions, sizeof(JsonThemeOptions) / sizeof(struct JsonValue)) == 0) {
                 if (oneTheme.key == 49 || oneTheme.key == 50) {
-                    oneTheme.key = 0; // Prevent overriding Pink Theme or Gradient Theme hotkeys
+                    oneTheme.key = 0; // Prevent overriding built-in theme hotkeys
                 }
                 themes.push_back(oneTheme);
             }
@@ -119,10 +122,11 @@ int __cdecl JsonFileFinder::FindJsonFiles(_In_ JsonFileReader* fileReader) {
     }
 
     // 4. Load global settings (quietly)
-    struct JsonValue JsonConfigs[] = {
-        {VT_Boolean, {.booleanValue = false}, nullptr, &fileReader->showMenu, "spectrum.tui.showMenu", "root"},
-        {VT_Boolean, {.booleanValue = true}, nullptr, &fileReader->noBgColor, "spectrum.tui.noBackgroundColor", "root"}
-    };
+    JsonValue jShowMenu, jNoBg;
+    jShowMenu.valueType = VT_Boolean; jShowMenu.defaultValue.booleanValue = false; jShowMenu.pointer = nullptr; jShowMenu.pointer1 = &fileReader->showMenu; jShowMenu.name = "spectrum.tui.showMenu"; jShowMenu.root = "root";
+    jNoBg.valueType = VT_Boolean; jNoBg.defaultValue.booleanValue = true; jNoBg.pointer = nullptr; jNoBg.pointer1 = &fileReader->noBgColor; jNoBg.name = "spectrum.tui.noBackgroundColor"; jNoBg.root = "root";
+    
+    struct JsonValue JsonConfigs[] = { jShowMenu, jNoBg };
 
     FilePtr configs;
     fopen_s(&configs, "settings.json", "r");

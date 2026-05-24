@@ -90,30 +90,30 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
     peakDecay.assign(initialMaxBins, 0.0f);
     waveValues.assign(initialMaxBins, 0.5f);
     
-    // Winamp dynamics
+    // Dynamics
     std::vector<float> peakVelocity(initialMaxBins, 0.0f);
     std::vector<int> peakHold(initialMaxBins, 0);
 
     const struct ThemeModeManager themeModeManager[] = {
-        {"Default Mode", ThemeMode::Mode0},
-        {"Mode 1", ThemeMode::Mode1},
-        {"Mode 2", ThemeMode::Mode2},
-        {"Mode 3", ThemeMode::Mode3},
-        {"Mode 4", ThemeMode::Mode4},
-        {"Pink Mode", ThemeMode::Mode5},
-        {"Gradient Mode", ThemeMode::Mode6}
+        {"Default Mode", Mode0},
+        {"Mode 1", Mode1},
+        {"Mode 2", Mode2},
+        {"Mode 3", Mode3},
+        {"Mode 4", Mode4},
+        {"Pink Mode", Mode5},
+        {"Gradient Mode", Mode6}
     };
     size_t sizeOfTMM = sizeof(themeModeManager) / sizeof(const struct ThemeModeManager);
-    enum ThemeMode themeMode = ThemeMode::Mode0;
+    enum ThemeMode themeMode = Mode0;
     
     std::cout << "\033[?1049h\033[H\033[2J\033[?25l" << std::flush;
 
     bool themeChanged = true;
     static bool lastMState = false;
 
-    // AGC / Rolling Normalization - Balanced 'Goldilocks' Tuning
-    float rollingMax = 70.0f;
-    const float noiseFloor = 50.0f; // High enough to be clean, low enough for bass body
+    // Preferred Tuning
+    float rollingMax = 60.0f;
+    const float noiseFloor = 35.0f; 
 
     while (AudioEngine::Get().IsRunning()) {
         // Theme Switching
@@ -122,9 +122,6 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
         while (index0 < themesArraySize) {
             if (GetAsyncKeyState(jsonFileReader.themes.at(index0).key) & 0x8000) {
                 std::memcpy(&jsonFileReader.currentTheme, &jsonFileReader.themes.at(index0), sizeof(struct Theme));
-                strcpy_s((char*)jsonFileReader.currentTheme.themeName, sizeof(jsonFileReader.currentTheme.themeName), jsonFileReader.themes.at(index0).themeName);
-                strcpy_s((char*)jsonFileReader.currentTheme.themeId, sizeof(jsonFileReader.currentTheme.themeId), jsonFileReader.themes.at(index0).themeId);
-                strcpy_s((char*)jsonFileReader.currentTheme.themeMode, sizeof(jsonFileReader.currentTheme.themeMode), jsonFileReader.themes.at(index0).themeMode);
                 themeChanged = true;
                 break; 
             }
@@ -141,7 +138,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                 tmIndex++;
             }
             themeChanged = false;
-            N_BARS = (themeMode == ThemeMode::Mode5 || themeMode == ThemeMode::Mode6) ? (termWidth / 3) : ((termWidth - 1) / 2);
+            N_BARS = (themeMode == Mode5 || themeMode == Mode6) ? (termWidth / 3) : ((termWidth - 1) / 2);
             if (N_BARS < 1) N_BARS = 1;
             int resizeMaxBins = std::max(numBins, N_BARS);
             barValues.assign(resizeMaxBins, 0.0f);
@@ -166,7 +163,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
             if (newWidth != termWidth || newHeight != termHeight) {
                 termWidth = newWidth; termHeight = newHeight;
                 numBins = termWidth * 2;
-                N_BARS = (themeMode == ThemeMode::Mode5 || themeMode == ThemeMode::Mode6) ? (termWidth / 3) : ((termWidth - 1) / 2);
+                N_BARS = (themeMode == Mode5 || themeMode == Mode6) ? (termWidth / 3) : ((termWidth - 1) / 2);
                 int resizeMaxBins = std::max(numBins, N_BARS);
                 barValues.assign(resizeMaxBins, 0.0f);
                 peakValues.assign(resizeMaxBins, 0.0f);
@@ -201,20 +198,15 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                             if (freq[j] > pVal) pVal = freq[j];
                         }
 
-                        // Gentler Tilt (40% boost at high end) to keep bass prominent
                         float tilt = 1.0f + (float)i / (float)N_BARS * 0.4f; 
                         pVal *= tilt;
-
                         if (pVal > frameMax) frameMax = (float)pVal;
 
-                        // AGC Scaling
                         float target = (float)((pVal - noiseFloor) / (rollingMax - noiseFloor));
                         target = std::max(0.0f, std::min(1.0f, target * masterVol));
-                        
-                        // Balanced Gamma Curve
-                        target = std::pow(target, 1.75f);
+                        target = std::pow(target, 1.3f);
 
-                        // Balanced Falloff (0.035f) - Smooth but responsive
+                        // Bar Falloff
                         if (target > barValues[i]) {
                             barValues[i] = target;
                         } else {
@@ -246,7 +238,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                     } else {
                         rollingMax = rollingMax * 0.999f + frameMax * 0.001f;
                     }
-                    if (rollingMax < 70.0f) rollingMax = 70.0f;
+                    if (rollingMax < 60.0f) rollingMax = 60.0f;
 
                 } else if (!wave.empty()) {
                     int offset = 0;
@@ -305,11 +297,11 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                 }
                 if (row < renderHeight - 1) frame += '\n';
             }
-        } else if (themeMode == ThemeMode::Mode5 || themeMode == ThemeMode::Mode6) {
+        } else if (themeMode == Mode5 || themeMode == Mode6) {
             for (int row = 0; row < renderHeight; row++) {
                 int blockRow = renderHeight - 1 - row;
                 char currentRowColor[64];
-                if (themeMode == ThemeMode::Mode6) {
+                if (themeMode == Mode6) {
                     float ratio = (float)blockRow / (float)(renderHeight - 1);
                     int r = (int)(255 * ratio); int g = (int)(255 * (1.0f - ratio));
                     sprintf_s(currentRowColor, sizeof(currentRowColor), "\033[38;2;%d;%d;%dm", r, g, 0);
@@ -326,7 +318,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                         if (blockRow <= h) { 
                             frame += currentRowColor; frame += "█"; frame += "\033[0m"; 
                         } else if (blockRow == ph && ph > 0) { 
-                            if (themeMode == ThemeMode::Mode6) frame += "\033[38;2;128;128;128m";
+                            if (themeMode == Mode6) frame += "\033[38;2;128;128;128m";
                             else frame += currentRowColor;
                             frame += "─"; frame += "\033[0m";
                         } else {
@@ -344,21 +336,21 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                     int barHeight = (int)(barValues[i] * renderHeight);
                     float rowA = float(row) / float(renderHeight);
                     float rowB = -rowA + 1.0f; float rowC = -fabs(rowA - 0.5f) + 1.0f;
-                    float effect = (themeMode == ThemeMode::Mode4) ? barValues[i] * 2.5f : 1.0f;
+                    float effect = (themeMode == Mode4) ? barValues[i] * 2.5f : 1.0f;
                     int color[3] = { (int)((255 * rowA * effect) * jsonFileReader.currentTheme.colorRed), (int)((255 * rowB * effect) * jsonFileReader.currentTheme.colorGreen), (int)((255 * rowC * effect) * jsonFileReader.currentTheme.colorBlue) };
                     int barTop = 0, barBottom = 0;
-                    if (themeMode == ThemeMode::Mode1) { barTop = (renderHeight - barHeight) / 2; barBottom = renderHeight - barTop; }
-                    else if (themeMode == ThemeMode::Mode2) { barTop = barHeight; barBottom = barHeight; }
-                    else if (themeMode == ThemeMode::Mode3) { int bh1 = renderHeight - barHeight; barTop = (renderHeight - bh1) / 2; barBottom = renderHeight - barTop; }
+                    if (themeMode == Mode1) { barTop = (renderHeight - barHeight) / 2; barBottom = renderHeight - barTop; }
+                    else if (themeMode == Mode2) { barTop = barHeight; barBottom = barHeight; }
+                    else if (themeMode == Mode3) { int bh1 = renderHeight - barHeight; barTop = (renderHeight - bh1) / 2; barBottom = renderHeight - barTop; }
                     char character[2] = {jsonFileReader.currentTheme.customCharacter, '\0'};
                     char temp[128];
-                    if (themeMode == ThemeMode::Mode0) {
+                    if (themeMode == Mode0) {
                         if (row <= barHeight) sprintf_s(temp, sizeof(temp), "\033[38;2;%d;%d;%dm%s\033[0m", color[0], color[1], color[2], (jsonFileReader.currentTheme.useRandomCharacters) ? UTF8Codes[rand() % sizeofCodes] : character);
                         else sprintf_s(temp, sizeof(temp), " ");
-                    } else if (themeMode == ThemeMode::Mode1 || themeMode == ThemeMode::Mode2 || themeMode == ThemeMode::Mode3) {
+                    } else if (themeMode == Mode1 || themeMode == Mode2 || themeMode == Mode3) {
                         if (row <= barBottom && row >= barTop) sprintf_s(temp, sizeof(temp), "\033[38;2;%d;%d;%dm%s\033[0m", color[0], color[1], color[2], (jsonFileReader.currentTheme.useRandomCharacters) ? UTF8Codes[rand() % sizeofCodes] : character);
                         else sprintf_s(temp, sizeof(temp), " ");
-                    } else if (themeMode == ThemeMode::Mode4) {
+                    } else if (themeMode == Mode4) {
                         sprintf_s(temp, sizeof(temp), "\033[38;2;%d;%d;%dm%s\033[0m", color[0], color[1], color[2], (jsonFileReader.currentTheme.useRandomCharacters) ? UTF8Codes[rand() % sizeofCodes] : character);
                     }
                     frame += temp; frame += " ";
