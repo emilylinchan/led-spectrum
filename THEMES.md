@@ -2,6 +2,10 @@
 
 You can create custom themes for SPECTRUM by adding `.json` files to the `themes/` directory located next to the executable.
 
+## Looking for Examples?
+
+If you want to see how themes are constructed in practice, check out the `themes/` directory in this repository. It contains several ready-to-use JSON files that demonstrate different color combinations, characters, and visualizer modes. You can use these as templates for your own creations!
+
 ## JSON Schema Example
 
 Create a file (e.g., `my_theme.json`) with the following structure:
