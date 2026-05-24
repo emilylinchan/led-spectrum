@@ -53,27 +53,6 @@ int __cdecl ShowOption(_In_ struct Option* option)
     return(0);
 }
 
-bool SpecialKey = false;
-int __cdecl GetKeyPressed(_In_ int* Pressed) 
-{
-    *Pressed = 0;
-    *Pressed = _getch();
-    if (*Pressed == 224) {
-        SpecialKey = true;
-    }
-
-    if (*Pressed == 72 && SpecialKey) {
-        *Pressed = VK_UP;
-        SpecialKey = false;
-    } else if (*Pressed == 80 && SpecialKey) {
-        *Pressed = VK_DOWN;
-        SpecialKey = false;
-    } else if (*Pressed == 13) {
-        *Pressed = VK_RETURN;
-    }
-    return(int(*Pressed));
-}
-
 int __cdecl JsonFileFinder::FindJsonFiles(_In_ JsonFileReader* fileReader) {
     struct _finddata_t jsonFilesFinder;
     intptr_t handle;
@@ -90,7 +69,18 @@ int __cdecl JsonFileFinder::FindJsonFiles(_In_ JsonFileReader* fileReader) {
     pinkTheme.key = 49; // Key '1'
     themes.push_back(pinkTheme);
 
-    // 2. Scan for other themes
+    // 2. Inject the default Gradient Theme at index 1
+    struct Theme gradientTheme{};
+    strcpy_s(gradientTheme.themeName, "Gradient Theme");
+    strcpy_s(gradientTheme.themeId, "gradient-default");
+    strcpy_s(gradientTheme.themeMode, "Gradient Mode");
+    gradientTheme.colorRed = 1.0;
+    gradientTheme.colorGreen = 1.0; 
+    gradientTheme.colorBlue = 1.0;  
+    gradientTheme.key = 50; // Key '2'
+    themes.push_back(gradientTheme);
+
+    // 3. Scan for other themes
     handle = _findfirst("themes\\*.json", &jsonFilesFinder);
     if (handle != -1L) {
         do {
@@ -118,8 +108,8 @@ int __cdecl JsonFileFinder::FindJsonFiles(_In_ JsonFileReader* fileReader) {
             };
 
             if (fileReader->ReadSettings(jsonFile, JsonThemeOptions, sizeof(JsonThemeOptions) / sizeof(struct JsonValue)) == 0) {
-                if (oneTheme.key == 49) {
-                    oneTheme.key = 0; // Prevent overriding the default Pink Theme hotkey
+                if (oneTheme.key == 49 || oneTheme.key == 50) {
+                    oneTheme.key = 0; // Prevent overriding Pink Theme or Gradient Theme hotkeys
                 }
                 themes.push_back(oneTheme);
             }
@@ -128,7 +118,7 @@ int __cdecl JsonFileFinder::FindJsonFiles(_In_ JsonFileReader* fileReader) {
         _findclose(handle);
     }
 
-    // 3. Load global settings (quietly)
+    // 4. Load global settings (quietly)
     struct JsonValue JsonConfigs[] = {
         {VT_Boolean, {.booleanValue = false}, nullptr, &fileReader->showMenu, "spectrum.tui.showMenu", "root"},
         {VT_Boolean, {.booleanValue = true}, nullptr, &fileReader->noBgColor, "spectrum.tui.noBackgroundColor", "root"}
@@ -141,7 +131,7 @@ int __cdecl JsonFileFinder::FindJsonFiles(_In_ JsonFileReader* fileReader) {
         fclose(configs);
     }
 
-    // 4. Set Pink Theme as current and exit (Minimalist: no menu)
+    // 5. Set Pink Theme as current and exit
     fileReader->currentTheme = themes.at(0);
     fileReader->themes = themes;
 

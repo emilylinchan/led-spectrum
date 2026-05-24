@@ -96,7 +96,8 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
         {"Mode 2", ThemeMode::Mode2},
         {"Mode 3", ThemeMode::Mode3},
         {"Mode 4", ThemeMode::Mode4},
-        {"Pink Mode", (ThemeMode)5}
+        {"Pink Mode", ThemeMode::Mode5},
+        {"Gradient Mode", ThemeMode::Mode6}
     };
     size_t sizeOfTMM = sizeof(themeModeManager) / sizeof(const struct ThemeModeManager);
     enum ThemeMode themeMode = ThemeMode::Mode0;
@@ -117,7 +118,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                 strcpy_s((char*)jsonFileReader.currentTheme.themeId, sizeof(jsonFileReader.currentTheme.themeId), jsonFileReader.themes.at(index0).themeId);
                 strcpy_s((char*)jsonFileReader.currentTheme.themeMode, sizeof(jsonFileReader.currentTheme.themeMode), jsonFileReader.themes.at(index0).themeMode);
                 themeChanged = true;
-                break; // Key 1 Priority
+                break; // Key Priority
             }
             index0++;
         }
@@ -134,7 +135,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
             themeChanged = false;
             
             // Recalculate bars and clear screen
-            N_BARS = (themeMode == (ThemeMode)5) ? (termWidth / 3) : ((termWidth - 1) / 2);
+            N_BARS = (themeMode == ThemeMode::Mode5 || themeMode == ThemeMode::Mode6) ? (termWidth / 3) : ((termWidth - 1) / 2);
             if (N_BARS < 1) N_BARS = 1;
             int resizeMaxBins = std::max(numBins, N_BARS);
             barValues.assign(resizeMaxBins, 0.0f);
@@ -162,7 +163,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                 termWidth = newWidth;
                 termHeight = newHeight;
                 numBins = termWidth * 2;
-                N_BARS = (themeMode == (ThemeMode)5) ? (termWidth / 3) : ((termWidth - 1) / 2);
+                N_BARS = (themeMode == ThemeMode::Mode5 || themeMode == ThemeMode::Mode6) ? (termWidth / 3) : ((termWidth - 1) / 2);
                 if (numBins < 1) numBins = 1;
                 if (N_BARS < 1) N_BARS = 1;
                 int resizeMaxBins = std::max(numBins, N_BARS);
@@ -314,10 +315,24 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                 }
                 if (row < renderHeight - 1) frame += '\n';
             }
-        } else if (themeMode == (ThemeMode)5) {
-            // Pink Mode Logic (Bars)
+        } else if (themeMode == ThemeMode::Mode5 || themeMode == ThemeMode::Mode6) {
+            // Pink and Gradient Mode Logic (Bars)
             for (int row = 0; row < renderHeight; row++) {
                 int blockRow = renderHeight - 1 - row;
+                
+                // Calculate dynamic color for this row if in Gradient Mode
+                char currentRowColor[64];
+                if (themeMode == ThemeMode::Mode6) {
+                    float ratio = (float)blockRow / (float)(renderHeight - 1);
+                    // Fade Green (0,255,0) at bottom (ratio=0) to Red (255,0,0) at top (ratio=1)
+                    int r = (int)(255 * ratio);
+                    int g = (int)(255 * (1.0f - ratio));
+                    int b = 0;
+                    sprintf_s(currentRowColor, sizeof(currentRowColor), "\033[38;2;%d;%d;%dm", r, g, b);
+                } else {
+                    strcpy_s(currentRowColor, sizeof(currentRowColor), themeColor);
+                }
+
                 for (int col = 0; col < termWidth; col++) {
                     int barIdx = col / 3;
                     int colInBar = col % 3;
@@ -329,11 +344,15 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                         int ph = (int)(pVal_at_idx * (renderHeight - 1));
 
                         if (blockRow <= h) {
-                            frame += themeColor;
+                            frame += currentRowColor;
                             frame += "█";
                             frame += "\033[0m";
                         } else if (blockRow == ph) {
-                            frame += themeColor;
+                            if (themeMode == ThemeMode::Mode6) {
+                                frame += "\033[38;2;128;128;128m"; // Grey peaks for gradient theme
+                            } else {
+                                frame += currentRowColor;
+                            }
                             frame += "─"; 
                             frame += "\033[0m";
                         } else {
