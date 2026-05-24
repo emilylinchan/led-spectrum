@@ -2,7 +2,7 @@
 
   <img width="520" alt="spectrum - Copy" src="https://github.com/user-attachments/assets/aeecb34f-0132-4a16-acf4-084cd1a19049" />
   
-  **A real-time, optimized C++ audio visualizer for the Windows console.**
+  **A real-time, optimized audio visualizer for the Windows console.**
   
   <!-- Badges -->
   <a href="https://github.com/majockbim/spectrum/stargazers">
@@ -72,7 +72,9 @@ graph LR
 ## The DSP Engine
 At the core of the visualizer is the **Discrete Fourier Transform (DFT)**, powered by the [FFTW3 C-API](https://www.fftw.org/). 
 
-To achieve a "Winamp-level" of responsiveness and accuracy, we apply:
+<img width="1920" alt="dsp" src="https://github.com/user-attachments/assets/87868a4f-0c1f-4a83-9784-391a55bc4db2" />
+
+To achieve a high level of responsiveness and accuracy, we apply:
 1. **Hann Windowing:** Eliminates spectral leakage for sharp, clean frequency bins.
 2. **Instant Attack / Linear Decay:** Bars rise instantly to peaks and fall with realistic, snappy physics.
 3. **Perceptual Weighting:** High frequencies are boosted to match the human ear's sensitivity (Equal-loudness curves).
@@ -82,7 +84,7 @@ To achieve a "Winamp-level" of responsiveness and accuracy, we apply:
 1. Download the latest release from the [Releases Page](https://github.com/majockbim/spectrum/releases).
 2. Extract the ZIP and run `spectrum.exe`.
 3. **Controls:**
-    *   **1 - 9:** Switch Themes (1: Pink, 2: Gradient, 3+: Custom).
+    *   **1 - 9:** Switch Themes (1: Gradient, 2: Pink, 3+: Custom).
     *   **M:** Toggle Oscilloscope Mode.
 
 ## Custom Themes
