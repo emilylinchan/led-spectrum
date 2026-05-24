@@ -117,7 +117,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                 strcpy_s((char*)jsonFileReader.currentTheme.themeId, sizeof(jsonFileReader.currentTheme.themeId), jsonFileReader.themes.at(index0).themeId);
                 strcpy_s((char*)jsonFileReader.currentTheme.themeMode, sizeof(jsonFileReader.currentTheme.themeMode), jsonFileReader.themes.at(index0).themeMode);
                 themeChanged = true;
-                break; // Prioritize the first theme in the list (Pink Theme)
+                break; // Key 1 Priority
             }
             index0++;
         }
@@ -133,7 +133,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
             }
             themeChanged = false;
             
-            // Recalculate bars and clear screen to remove artifacts from previous theme
+            // Recalculate bars and clear screen
             N_BARS = (themeMode == (ThemeMode)5) ? (termWidth / 3) : ((termWidth - 1) / 2);
             if (N_BARS < 1) N_BARS = 1;
             int resizeMaxBins = std::max(numBins, N_BARS);
@@ -208,7 +208,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                             }
                         }
 
-                        pVal -= 2.0; 
+                        // Adjust noise floor for clearer separation
                         double noiseFloor = 25.0; 
                         double maxVolume = 90.0; 
 
@@ -218,19 +218,22 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
 
                         percentage *= masterVol;
 
+                        // Advanced smoothing: Fast Attack, Slow Decay
                         float target = percentage;
                         if (target > barValues[i]) {
-                            barValues[i] = barValues[i] * 0.15f + target * 0.85f;
+                            // Rise fast (Attack)
+                            barValues[i] = barValues[i] * 0.1f + target * 0.9f;
                         } else {
-                            barValues[i] = barValues[i] * 0.80f + target * 0.20f;
+                            // Fall slow (Decay)
+                            barValues[i] = barValues[i] * 0.7f + target * 0.3f;
                         }
 
                         if (target >= peakValues[i]) {
                             peakValues[i] = target;
-                            peakDecay[i] = 0.001f;
+                            peakDecay[i] = 0.005f; 
                         } else {
                             peakValues[i] -= peakDecay[i];
-                            peakDecay[i] *= 1.02f;
+                            peakDecay[i] *= 1.05f; 
                         }
                         if (peakValues[i] < 0.0f) peakValues[i] = 0.0f;
                     }
@@ -293,7 +296,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                                 frame += "\033[0m";
                             } else if (blockRow == ph) {
                                 frame += pinkColor;
-                                frame += "─"; 
+                                frame += "─"; // Winamp dash
                                 frame += "\033[0m";
                             } else {
                                 frame += " ";
