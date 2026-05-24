@@ -32,7 +32,7 @@
 *   **Dynamic Themes:** Seamlessly switch between built-in and custom JSON themes using runtime hotkeys.
 *   **Oscilloscope Mode:** Toggle a real-time Braille-based waveform view with a single keypress.
 *   **Automatic Gain Control (AGC):** Rolling normalization ensures the bars always fill the screen nicely regardless of volume.
-*   **High Performance:** < 1% CPU usage on modern machines with a tiny 0.4 MB memory footprint.
+*   **High Performance:** < 5% CPU usage on modern machines with a small memory footprint of ~50MB.
 
 ## System Architecture
 ```mermaid
