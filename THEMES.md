@@ -4,7 +4,9 @@ You can create custom themes for SPECTRUM by adding `.json` files to the `themes
 
 ## Looking for Examples?
 
-If you want to see how themes are constructed in practice, check out the `themes/` directory in this repository. It contains several ready-to-use JSON files that demonstrate different color combinations, characters, and visualizer modes. You can use these as templates for your own creations!
+If you want to see how themes are constructed in practice, check out the `themes/` directory in the project root. It contains several ready-to-use JSON files (like `ocean_blue.json`, `matrix_rain.json`, etc.) that demonstrate different color combinations, characters, and visualizer modes. 
+
+**Installation Note:** To use these examples, copy the `.json` files into a folder named `themes` located in the same directory as your `spectrum.exe` binary (e.g., `spectrum/themes/`).
 
 ## JSON Schema Example
 
