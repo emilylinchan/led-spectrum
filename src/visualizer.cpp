@@ -111,8 +111,9 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
     bool themeChanged = true;
     static bool lastMState = false;
 
-    float rollingMax = 60.0f;
-    const float noiseFloor = 20.0f;
+    // AGC / Rolling Normalization - Balanced 'Goldilocks' Tuning
+    float rollingMax = 70.0f;
+    const float noiseFloor = 50.0f; // High enough to be clean, low enough for bass body
 
     while (AudioEngine::Get().IsRunning()) {
         // Theme Switching
@@ -200,18 +201,24 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                             if (freq[j] > pVal) pVal = freq[j];
                         }
 
-                        float tilt = 1.0f + (float)i / (float)N_BARS * 0.7f; 
+                        // Gentler Tilt (40% boost at high end) to keep bass prominent
+                        float tilt = 1.0f + (float)i / (float)N_BARS * 0.4f; 
                         pVal *= tilt;
+
                         if (pVal > frameMax) frameMax = (float)pVal;
 
+                        // AGC Scaling
                         float target = (float)((pVal - noiseFloor) / (rollingMax - noiseFloor));
                         target = std::max(0.0f, std::min(1.0f, target * masterVol));
+                        
+                        // Balanced Gamma Curve
+                        target = std::pow(target, 1.75f);
 
-                        // Bar Falloff
+                        // Balanced Falloff (0.035f) - Smooth but responsive
                         if (target > barValues[i]) {
                             barValues[i] = target;
                         } else {
-                            barValues[i] -= 0.02f;
+                            barValues[i] -= 0.035f; 
                             if (barValues[i] < 0.0f) barValues[i] = 0.0f;
                         }
 
@@ -219,28 +226,27 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                         if (target >= peakValues[i]) {
                             peakValues[i] = target;
                             peakVelocity[i] = 0.0f;
-                            peakHold[i] = 12; // Hold for 12 frames
+                            peakHold[i] = 12; 
                         } else {
                             if (peakHold[i] > 0) {
                                 peakHold[i]--;
                             } else {
-                                peakVelocity[i] += 0.001f; // Slow gravity
+                                peakVelocity[i] += 0.0015f; 
                                 peakValues[i] -= peakVelocity[i];
                             }
                         }
-                        // Stop peak at the bar height
                         if (peakValues[i] < barValues[i]) {
                             peakValues[i] = barValues[i];
-                            peakVelocity[i] = 0.0f;
+                            peakVelocity[i] = 0.00f;
                         }
                     }
 
                     if (frameMax > rollingMax) {
-                        rollingMax = rollingMax * 0.85f + frameMax * 0.15f;
+                        rollingMax = rollingMax * 0.9f + frameMax * 0.1f;
                     } else {
-                        rollingMax = rollingMax * 0.9995f + frameMax * 0.0005f;
+                        rollingMax = rollingMax * 0.999f + frameMax * 0.001f;
                     }
-                    if (rollingMax < 45.0f) rollingMax = 45.0f;
+                    if (rollingMax < 70.0f) rollingMax = 70.0f;
 
                 } else if (!wave.empty()) {
                     int offset = 0;
@@ -319,7 +325,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                         
                         if (blockRow <= h) { 
                             frame += currentRowColor; frame += "█"; frame += "\033[0m"; 
-                        } else if (blockRow == ph && ph > 0) { // Only draw if above zero
+                        } else if (blockRow == ph && ph > 0) { 
                             if (themeMode == ThemeMode::Mode6) frame += "\033[38;2;128;128;128m";
                             else frame += currentRowColor;
                             frame += "─"; frame += "\033[0m";
