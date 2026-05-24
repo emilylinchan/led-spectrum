@@ -32,7 +32,7 @@
 *   **Dynamic Themes:** Seamlessly switch between built-in and custom JSON themes using runtime hotkeys.
 *   **Oscilloscope Mode:** Toggle a real-time Braille-based waveform view with a single keypress.
 *   **Automatic Gain Control (AGC):** Rolling normalization ensures the bars always fill the screen nicely regardless of volume.
-*   **High Performance:** ~0% CPU usage on modern machines with a tiny 0.4 MB memory footprint.
+*   **High Performance:** < 1% CPU usage on modern machines with a tiny 0.4 MB memory footprint.
 
 ## System Architecture
 ```mermaid
@@ -116,5 +116,5 @@ If you'd like to build from source or contribute to the project, please see **[C
 [FFTW (org)](https://www.fftw.org/) | [yyjson (GitHub)](https://github.com/ibireme/yyjson) | [WASAPI Documentation](https://learn.microsoft.com/en-us/windows/win32/api/audioclient/)
 
 ## Contributors
-A massive thank you to everyone who has helped build and optimize spectrum. <br>
+Thank you to everyone who has helped build spectrum <br>
 Check out [Contributors Hall of Fame](CONTRIBUTORS.md).
