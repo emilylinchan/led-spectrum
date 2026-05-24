@@ -109,6 +109,9 @@ spectrum/
 ## Contributing & Building
 If you'd like to build from source or contribute to the project, please see **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
+## Inspiration & Honorable Mentions
+*   **Winamp**: A huge honorable mention to the classic **Winamp** spectral visualizer, which served as the primary inspiration for the responsiveness, physics, and aesthetic of this project. 
+
 ## References
 [FFTW (org)](https://www.fftw.org/) | [yyjson (GitHub)](https://github.com/ibireme/yyjson) | [WASAPI Documentation](https://learn.microsoft.com/en-us/windows/win32/api/audioclient/)
 
