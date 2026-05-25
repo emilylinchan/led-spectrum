@@ -5,4 +5,5 @@ A massive thank you to the developers who have helped build and optimize `spectr
 | Contributor | Role / Major Contributions | GitHub |
 | :--- | :--- | :--- |
 | **Majock Bim** | Creator & Lead Maintainer | [@majockbim](https://github.com/majockbim) |
-| **Joe.R** | ANSI Color Mapping, Core Engine Updates, Themes, Json Parser, etc.. | [@Joe](https://github.com/johnmilson125-png) |
+| **Joe R.** | ANSI Color Mapping, Core Engine Updates | [@Joe](https://github.com/johnmilson125-png) |
+| **Yug Vashisth** | Critical documentation corrections | [@Yug-Vashisth](https://github.com/Yug-Vashisth) |
