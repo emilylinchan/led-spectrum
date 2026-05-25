@@ -1,5 +1,5 @@
 /*
-    spectru - A real-time command line audio visualizer
+    spectrum - A real-time command line audio visualizer
     Copyright (C) 2026 Majock Bim
 
     This program is free software: you can redistribute it and/or modify
@@ -15,12 +15,18 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
+
 #pragma once
 
 #include <cmath>
+#include <vector>
 
 #include "../processing/signal_processor.hpp"
 #include "fftw3.h"
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 class FFTEngine {
 private:
@@ -30,6 +36,8 @@ private:
     double *f;
     fftw_complex *F;
     fftw_plan ForwardPlan;
+
+    std::vector<double> hannWindow;
 
 public:
     FFTEngine();

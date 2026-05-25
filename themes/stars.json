@@ -1,0 +1,13 @@
+{
+    "theme.name":"stars",
+    "theme.id":"stars",
+    "theme.properties": {
+        "spectrum.tui.colorR":1.0,
+        "spectrum.tui.colorG":1.0,
+        "spectrum.tui.colorB":1.0,
+        "spectrum.tui.useRandomCharacters":false,
+        "spectrum.tui.customCharacter":"*",
+        "spectrum.tui.visualizerMode":"Default Mode",
+        "spectrum.tui.key":55
+    }
+}

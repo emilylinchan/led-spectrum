@@ -1,8 +1,7 @@
 /*
-    spectrum - A real-time command line audio visualizer
-    Copyright (C) 2026 Majock Bim (@majockbim)
-    Copyright (C) 2026 Joe R. (@johnmilson125-png)
-
+    Terminal Equalizer - A real-time command line audio visualizer
+    Copyright (C) 2026 Majock Bim
+    Copyright (C) 2026 Joe R.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -20,10 +19,26 @@
 
 #include "../inc/ui/visualizer.hpp"
 
+#define AsciiRgb(k, r, g, b) "\033[" #k ";2;" #r ";" #g ";" #b "m"
+
+template <typename _divide_number_t, typename _divide_number1_t>
+inline _divide_number_t __cdecl SafeDivide(_In_ _divide_number_t a, _In_ _divide_number1_t b) noexcept 
+{
+    if (b == 0) {return(1.00f);} return(_divide_number_t(_divide_number1_t(a)/b));
+}
+
+std::string RenderEqualizer::getBraille(unsigned char mask) {
+    std::string s;
+    s += (char)0xE2;
+    s += (char)(0xA0 | (mask >> 6));
+    s += (char)(0x80 | (mask & 0x3F));
+    return s;
+}
+
 void RenderEqualizer::Display() {
     int level;
-    double temp;
-    double vol;
+    float temp;
+    float vol;
     while(AudioEngine::Get().IsRunning()) {
         vol = AudioEngine::Get().GenVolLevel();
         temp = vol * 9.0;
@@ -44,131 +59,317 @@ void RenderEqualizer::DisplayBuffer() {
     }
 }
 
-void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::mutex& magMutex, int sampleRate) 
-{
+bool __cdecl IsCorrectRow(int row) {
+    int index = 0;
+    const int Rows[] = {1, 3, 6, 4, 8, 19, 13, 16, 45, 82, 17, 36};
+    while (index < (int)(sizeof(Rows) / sizeof(const int))) {
+        if (row == Rows[index]) return true;
+        index++;
+    }
+    return false;
+}
+
+void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<double>& wave, std::mutex& magMutex, int sampleRate, JsonFileReader& jsonFileReader) {
     GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
     termWidth  = csbi.srWindow.Right - csbi.srWindow.Left + 1;
     termHeight = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
 
-    N_BARS = (termWidth - 1) / 2;
+    numBins = termWidth * 2;
+    N_BARS = termWidth / 3;
+    if (numBins < 1) numBins = 1;
+    if (N_BARS < 1) N_BARS = 1;
 
     unsigned int frameCount = 0;
     std::string frame;
-    frame.reserve(termWidth * termHeight);
-    std::vector<float> barValues;
-    barValues.resize(N_BARS);
-
-    SetConsoleOutputCP(CP_UTF8);
+    frame.reserve(termWidth * termHeight * 10);
     
-    // switch to alternate screen buffer and hide cursor
-    // \033[?1049h: switch to alternate buffer
-    // \033[H: move cursor to home
-    // \033[2J: clear entire screen
-    // \033[?25l: hide cursor
+    int initialMaxBins = std::max(numBins, N_BARS);
+    barValues.assign(initialMaxBins, 0.0f);
+    peakValues.assign(initialMaxBins, 0.0f);
+    peakDecay.assign(initialMaxBins, 0.0f);
+    waveValues.assign(initialMaxBins, 0.5f);
+    
+    // Dynamics
+    std::vector<float> peakVelocity(initialMaxBins, 0.0f);
+    std::vector<int> peakHold(initialMaxBins, 0);
+
+    const struct ThemeModeManager themeModeManager[] = {
+        {"Default Mode", Mode0},
+        {"Mode 1", Mode1},
+        {"Mode 2", Mode2},
+        {"Mode 3", Mode3},
+        {"Mode 4", Mode4},
+        {"Pink Mode", Mode5},
+        {"Gradient Mode", Mode6}
+    };
+    size_t sizeOfTMM = sizeof(themeModeManager) / sizeof(const struct ThemeModeManager);
+    enum ThemeMode themeMode = Mode0;
+    
     std::cout << "\033[?1049h\033[H\033[2J\033[?25l" << std::flush;
 
+    bool themeChanged = true;
+    static bool lastMState = false;
+
+    // Preferred Tuning
+    float rollingMax = 60.0f;
+    const float noiseFloor = 35.0f; 
+
     while (AudioEngine::Get().IsRunning()) {
+        // Theme Switching
+        size_t index0 = 0;
+        size_t themesArraySize = jsonFileReader.themes.size();
+        while (index0 < themesArraySize) {
+            if (GetAsyncKeyState(jsonFileReader.themes.at(index0).key) & 0x8000) {
+                std::memcpy(&jsonFileReader.currentTheme, &jsonFileReader.themes.at(index0), sizeof(struct Theme));
+                themeChanged = true;
+                break; 
+            }
+            index0++;
+        }
+
+        if (themeChanged) {
+            size_t tmIndex = 0;
+            while (tmIndex < sizeOfTMM) {
+                if (strcmp(themeModeManager[tmIndex].themeModeName, jsonFileReader.currentTheme.themeMode) == 0) {
+                    themeMode = themeModeManager[tmIndex].themeMode;
+                    break;
+                }
+                tmIndex++;
+            }
+            themeChanged = false;
+            N_BARS = (themeMode == Mode5 || themeMode == Mode6) ? (termWidth / 3) : ((termWidth - 1) / 2);
+            if (N_BARS < 1) N_BARS = 1;
+            int resizeMaxBins = std::max(numBins, N_BARS);
+            barValues.resize(resizeMaxBins, 0.0f);
+            peakValues.resize(resizeMaxBins, 0.0f);
+            peakVelocity.resize(resizeMaxBins, 0.0f);
+            peakHold.resize(resizeMaxBins, 0);
+            waveValues.resize(resizeMaxBins, 0.5f);
+        }
+
+        bool currentMState = (GetAsyncKeyState('M') & 0x8000) != 0;
+        if (currentMState && !lastMState) {
+            oscilloscopeMode = !oscilloscopeMode;
+        }
+        lastMState = currentMState;
 
         if (frameCount % 30 == 0) {
             GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
             int newWidth = csbi.srWindow.Right - csbi.srWindow.Left + 1;
             int newHeight = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
-            
             if (newWidth != termWidth || newHeight != termHeight) {
-                termWidth = newWidth;
-                termHeight = newHeight;
-                N_BARS = (termWidth - 1) / 2;
-                if (N_BARS < 1) N_BARS = 1;
-                barValues.resize(N_BARS);
-                frame.reserve(termWidth * termHeight);
-                // clear alternate screen on resize
+                termWidth = newWidth; termHeight = newHeight;
+                numBins = termWidth * 2;
+                N_BARS = (themeMode == Mode5 || themeMode == Mode6) ? (termWidth / 3) : ((termWidth - 1) / 2);
+                int resizeMaxBins = std::max(numBins, N_BARS);
+                barValues.assign(resizeMaxBins, 0.0f);
+                peakValues.assign(resizeMaxBins, 0.0f);
+                peakVelocity.assign(resizeMaxBins, 0.0f);
+                peakHold.assign(resizeMaxBins, 0);
+                waveValues.assign(resizeMaxBins, 0.5f);
+                frame.reserve(termWidth * termHeight * 10);
                 std::cout << "\033[2J" << std::flush;
             }
         }
         frameCount++;
 
         float masterVol = AudioEngine::Get().GenVolLevel();
-
+        float frameMax = 0.0f;
         bool hasData = false;
+
         {
             std::lock_guard<std::mutex> lock(magMutex);
-
-            if (freq.size() >= 1201) {
+            if (!freq.empty()) {
                 hasData = true;
-                
-                for (int i = 0; i < N_BARS; i++) {
-                    float fLow = 20.0f * pow(20000.0f / 20.0f, (float)i / N_BARS);
-                    float fHigh = 20.0f * pow(20000.0f / 20.0f, (float)(i + 1) / N_BARS);
-                    
-                    int binLow  = (int)(fLow * 1201 / (sampleRate / 2.f));
-                    int binHigh = (int)(fHigh * 1201 / (sampleRate / 2.f));
-                    
-                    binLow  = std::max(0, std::min(binLow, 1200));
-                    binHigh = std::max(0, std::min(binHigh, 1200));
-                    if (binLow >= binHigh) binHigh = binLow + 1;
-                    if (binHigh > (int)freq.size()) binHigh = (int)freq.size();
-                    
-                    double peak = *std::max_element(freq.begin() + binLow, freq.begin() + binHigh);
+                if (!oscilloscopeMode) {
+                    for (int i = 0; i < N_BARS; i++) {
+                        // Map bars to 20Hz - 16kHz range (most audio is silent above 16k)
+                        float fLow = 20.0f * std::pow(16000.0f / 20.0f, (float)i / N_BARS);
+                        float fHigh = 20.0f * std::pow(16000.0f / 20.0f, (float)(i + 1) / N_BARS);
+                        double binStart = (double)fLow * (double)(freq.size() - 1) / (sampleRate / 2.0);
+                        double binEnd = (double)fHigh * (double)(freq.size() - 1) / (sampleRate / 2.0);
+                        int iStart = std::max(0, std::min((int)std::floor(binStart), (int)freq.size() - 1));
+                        int iEnd = std::max(0, std::min((int)std::ceil(binEnd), (int)freq.size() - 1));
+                        
+                        double pVal = -100.0; 
+                        for (int j = iStart; j <= iEnd; j++) {
+                            if (freq[j] > pVal) pVal = freq[j];
+                        }
 
-                    // with dB+100, silent is ~0 and loud is ~100
-                    double noiseFloor = 20.0; 
-                    double maxVolume = 90.0; 
+                        float tilt = 1.0f + (float)i / (float)N_BARS * 0.4f; 
+                        pVal *= tilt;
+                        if (pVal > frameMax) frameMax = (float)pVal;
 
-                    float percentage = (float)((peak - noiseFloor) / (maxVolume - noiseFloor));
+                        float target = (float)((pVal - noiseFloor) / (rollingMax - noiseFloor));
+                        target = std::max(0.0f, std::min(1.0f, target * masterVol));
+                        target = std::pow(target, 1.3f);
 
-                    if (percentage < 0.0f) percentage = 0.0f;
-                    if (percentage > 1.0f) percentage = 1.0f;
+                        // Bar Falloff
+                        if (target > barValues[i]) {
+                            barValues[i] = target;
+                        } else {
+                            barValues[i] -= 0.035f; 
+                            if (barValues[i] < 0.0f) barValues[i] = 0.0f;
+                        }
 
-                    // scale by master volume slider
-                    percentage *= masterVol;
+                        // Peak Physics
+                        if (target >= peakValues[i]) {
+                            peakValues[i] = target;
+                            peakVelocity[i] = 0.0f;
+                            peakHold[i] = 12; 
+                        } else {
+                            if (peakHold[i] > 0) {
+                                peakHold[i]--;
+                            } else {
+                                peakVelocity[i] += 0.0015f; 
+                                peakValues[i] -= peakVelocity[i];
+                            }
+                        }
+                        if (peakValues[i] < barValues[i]) {
+                            peakValues[i] = barValues[i];
+                            peakVelocity[i] = 0.00f;
+                        }
+                    }
 
-                    // smoothing: 70% new, 30% old
-                    barValues[i] = barValues[i] * 0.3f + percentage * 0.7f;
+                    // Horizontal spectral smoothing (Edges included)
+                    if (N_BARS > 2) {
+                        barValues[0] = barValues[0] * 0.8f + barValues[1] * 0.2f;
+                        for (int i = 1; i < N_BARS - 1; i++) {
+                            barValues[i] = barValues[i] * 0.6f + (barValues[i-1] + barValues[i+1]) * 0.2f;
+                        }
+                        barValues[N_BARS - 1] = barValues[N_BARS - 1] * 0.8f + barValues[N_BARS - 2] * 0.2f;
+                    }
+
+                    if (frameMax > rollingMax) {
+                        rollingMax = rollingMax * 0.9f + frameMax * 0.1f;
+                    } else {
+                        rollingMax = rollingMax * 0.999f + frameMax * 0.001f;
+                    }
+                    if (rollingMax < 60.0f) rollingMax = 60.0f;
+
+                } else if (!wave.empty()) {
+                    int offset = 0;
+                    for (int j = 0; j < (int)wave.size() - 1 && j < 500; j++) {
+                        if (wave[j] < 0 && wave[j+1] >= 0) { offset = j; break; }
+                    }
+                    int remainingSamples = (int)wave.size() - offset;
+                    for (int i = 0; i < numBins; i++) {
+                        int idx = offset + (int)(i * (float)remainingSamples / numBins);
+                        if (idx >= (int)wave.size()) idx = (int)wave.size() - 1;
+                        float target = (float)wave[idx] * masterVol;
+                        target = std::max(-1.0f, std::min(1.0f, target * 0.9f));
+                        float targetCentered = (target + 1.0f) * 0.5f;
+                        waveValues[i] = waveValues[i] * 0.4f + targetCentered * 0.6f;
+                    }
                 }
             }
         }
 
-        if (!hasData) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            continue;
-        }
+        if (!hasData) { std::this_thread::sleep_for(std::chrono::milliseconds(10)); continue; }
 
         frame.clear();
-        // use termHeight - 1 to allow bars to touch the top row
         int renderHeight = termHeight - 1;
         if (renderHeight < 1) renderHeight = 1;
 
-        float rowA = 0;
-        float rowB = 0;
-        float rowC = 0;
-        for (int row = renderHeight; row > 0; row--) {
-            for (int i = 0; i < N_BARS; i++) {
-                int barHeight = (int)(barValues[i] * renderHeight);
+        char themeColor[64];
+        sprintf_s(themeColor, sizeof(themeColor), "\033[38;2;%d;%d;%dm", (int)(jsonFileReader.currentTheme.colorRed * 255), (int)(jsonFileReader.currentTheme.colorGreen * 255), (int)(jsonFileReader.currentTheme.colorBlue * 255));
 
-                if (row <= barHeight) {
-                    char tempArray[256];
-                    unsigned char color8Bit[3] = {(unsigned char)(255 * rowA), (unsigned char)(255 * rowB), (unsigned char)(255 * rowC)};
-                    sprintf_s(tempArray, sizeof(tempArray), "\033[38;2;%d;%d;%dm:=\033[0m", color8Bit[0], color8Bit[1], color8Bit[2]);
-                    frame += tempArray;
-                } else {
-                    frame += "\033[38;2;37;37;37m:=\033[0m";
-                    rowA = float(row) / float(renderHeight);
-                    rowB = -rowA + 1.0f;
-                    rowC = -fabs(rowA - 0.5f);
+        if (oscilloscopeMode) {
+            for (int row = 0; row < renderHeight; row++) {
+                int blockRow = renderHeight - 1 - row;
+                int dotBase = blockRow * 4;
+                for (int col = 0; col < termWidth; col++) {
+                    int binL = col * 2; int binR = col * 2 + 1;
+                    unsigned char mask = 0;
+                    auto drawSegment = [&](int bIdx, int mCol) {
+                        float val = waveValues[bIdx];
+                        float prevVal = (bIdx > 0) ? waveValues[bIdx - 1] : val;
+                        int h1 = (int)(prevVal * (renderHeight * 4 - 1));
+                        int h2 = (int)(val * (renderHeight * 4 - 1));
+                        int start = std::min(h1, h2); int end = std::max(h1, h2);
+                        for (int y = start; y <= end; y++) {
+                            if (y >= dotBase && y < dotBase + 4) {
+                                int d = y - dotBase;
+                                if (mCol == 0) {
+                                    if (d == 0) mask |= 0x40; else if (d == 1) mask |= 0x04; else if (d == 2) mask |= 0x02; else if (d == 3) mask |= 0x01;
+                                } else {
+                                    if (d == 0) mask |= 0x80; else if (d == 1) mask |= 0x20; else if (d == 2) mask |= 0x10; else if (d == 3) mask |= 0x08;
+                                }
+                            }
+                        }
+                    };
+                    drawSegment(binL, 0); if (binR < numBins) drawSegment(binR, 1);
+                    if (mask > 0) { frame += themeColor; frame += getBraille(mask); frame += "\033[0m"; }
+                    else frame += " ";
                 }
+                frame += "\033[K";
+                if (row < renderHeight - 1) frame += '\n';
             }
-            if (row > 1) frame += '\n'; 
-        }
+        } else if (themeMode == Mode5 || themeMode == Mode6) {
+            for (int row = 0; row < renderHeight; row++) {
+                int blockRow = renderHeight - 1 - row;
+                char currentRowColor[64];
+                if (themeMode == Mode6) {
+                    float ratio = (float)blockRow / (float)(renderHeight - 1);
+                    int r = (int)(255 * ratio); int g = (int)(255 * (1.0f - ratio));
+                    sprintf_s(currentRowColor, sizeof(currentRowColor), "\033[38;2;%d;%d;%dm", r, g, 0);
+                } else strcpy_s(currentRowColor, sizeof(currentRowColor), themeColor);
 
-        // Use \033[H to jump to top-left, \033[J to clear what's below the new frame
+                for (int col = 0; col < termWidth; col++) {
+                    int barIdx = col / 3; int colInBar = col % 3;
+                    if (barIdx < N_BARS && colInBar < 2) {
+                        float val = barValues[barIdx];
+                        int h = (int)(val * (renderHeight - 1));
+                        float phVal = peakValues[barIdx];
+                        int ph = (int)(phVal * (renderHeight - 1));
+                        
+                        if (blockRow <= h) { 
+                            frame += currentRowColor; frame += "█"; frame += "\033[0m"; 
+                        } else if (blockRow == ph && ph > 0) { 
+                            if (themeMode == Mode6) frame += "\033[38;2;128;128;128m";
+                            else frame += currentRowColor;
+                            frame += "─"; frame += "\033[0m";
+                        } else {
+                            frame += " ";
+                        }
+                    } else frame += " ";
+                }
+                frame += "\033[K";
+                if (row < renderHeight - 1) frame += '\n';
+            }
+        } else {
+            const char* UTF8Codes[] = { "─", "│", "─", "│", "┌", "┐", "└", "┘", "├", "┤", "┬", "┴", "┼", "♪", "♫", "♬", "♩", "⣿", "⣶", "⣤", "⣀", "⡇", "#" };
+            size_t sizeofCodes = sizeof(UTF8Codes) / sizeof(UTF8Codes[0]);
+            for (int row = renderHeight; row > 0; row--) {
+                for (int i = 0; i < N_BARS; i++) {
+                    int barHeight = (int)(barValues[i] * renderHeight);
+                    float rowA = float(row) / float(renderHeight);
+                    float rowB = -rowA + 1.0f; float rowC = -fabs(rowA - 0.5f) + 1.0f;
+                    float effect = (themeMode == Mode4) ? barValues[i] * 2.5f : 1.0f;
+                    int color[3] = { (int)((255 * rowA * effect) * jsonFileReader.currentTheme.colorRed), (int)((255 * rowB * effect) * jsonFileReader.currentTheme.colorGreen), (int)((255 * rowC * effect) * jsonFileReader.currentTheme.colorBlue) };
+                    int barTop = 0, barBottom = 0;
+                    if (themeMode == Mode1) { barTop = (renderHeight - barHeight) / 2; barBottom = renderHeight - barTop; }
+                    else if (themeMode == Mode2) { barTop = barHeight; barBottom = barHeight; }
+                    else if (themeMode == ThemeMode::Mode3) { int bh1 = renderHeight - barHeight; barTop = (renderHeight - bh1) / 2; barBottom = renderHeight - barTop; }
+                    char character[2] = {jsonFileReader.currentTheme.customCharacter, '\0'};
+                    char temp[128];
+                    if (themeMode == Mode0) {
+                        if (row <= barHeight) sprintf_s(temp, sizeof(temp), "\033[38;2;%d;%d;%dm%s\033[0m", color[0], color[1], color[2], (jsonFileReader.currentTheme.useRandomCharacters) ? UTF8Codes[rand() % sizeofCodes] : character);
+                        else sprintf_s(temp, sizeof(temp), " ");
+                    } else if (themeMode == Mode1 || themeMode == Mode2 || themeMode == Mode3) {
+                        if (row <= barBottom && row >= barTop) sprintf_s(temp, sizeof(temp), "\033[38;2;%d;%d;%dm%s\033[0m", color[0], color[1], color[2], (jsonFileReader.currentTheme.useRandomCharacters) ? UTF8Codes[rand() % sizeofCodes] : character);
+                        else sprintf_s(temp, sizeof(temp), " ");
+                    } else if (themeMode == Mode4) {
+                        sprintf_s(temp, sizeof(temp), "\033[38;2;%d;%d;%dm%s\033[0m", color[0], color[1], color[2], (jsonFileReader.currentTheme.useRandomCharacters) ? UTF8Codes[rand() % sizeofCodes] : character);
+                    }
+                    frame += temp; frame += " ";
+                }
+                frame += "\033[K";
+                if (row > 1) frame += '\n';
+            }
+        }
         std::cout << "\033[H" << frame << "\033[J" << std::flush;        
         std::this_thread::sleep_for(std::chrono::milliseconds(16)); 
     }
-    
-    // clear alternate screen, switch back to main buffer, and show cursor
-    // \033[2J: clear screen
-    // \033[H: home cursor
-    // \033[?1049l: switch back to main buffer
-    // \033[?25h: show cursor
     std::cout << "\033[2J\033[H\033[?1049l\033[?25h" << std::flush;
 }

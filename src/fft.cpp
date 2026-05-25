@@ -21,10 +21,16 @@
 FFTEngine::FFTEngine()
 {
     n = 2400; // input sample (real)
-    np = n / 2 + 1; // retursning sample size (real + complex)
+    np = n / 2 + 1; // returning sample size (real + complex)
 
     f = fftw_alloc_real(n);
     F = fftw_alloc_complex(np);
+
+    // Pre-calculate Hann window
+    hannWindow.resize(n);
+    for (int i = 0; i < n; ++i) {
+        hannWindow[i] = 0.5 * (1.0 - std::cos(2.0 * M_PI * i / (n - 1)));
+    }
 
     // build plan once 
     ForwardPlan = fftw_plan_dft_r2c_1d(n, f, F, FFTW_ESTIMATE);
@@ -55,23 +61,27 @@ std::vector<double> FFTEngine::Run(std::array<double, 2400>& audioBuffer)
             }
         }
 
-        f[i] = sample;
+        // Apply Hann window to reduce spectral leakage
+        f[i] = sample * hannWindow[i];
     }
 
     // perform fft
     fftw_execute(ForwardPlan);
 
-    magnitudes.reserve(1201);
+    magnitudes.reserve(np);
 
     for (int i = 0; i < np; ++i)
     {
         double real = F[i][0];
         double imag = F[i][1];
 
+        // Magnitude
         double raw = std::sqrt(real * real + imag * imag);
 
+        // Normalize by n/2 (for Hann window, we could normalize further but this is fine for relative scale)
         double normalized = raw / (n / 2.0);
 
+        // Convert to dB
         double dB = 20.0 * std::log10(normalized + 1e-12);
 
         // shift so that -100dB is 0 and 0dB is 100

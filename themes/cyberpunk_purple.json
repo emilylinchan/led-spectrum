@@ -1,0 +1,13 @@
+{
+    "theme.name": "Cyberpunk Purple",
+    "theme.id": "cyberpunk-purple",
+    "theme.properties": {
+        "spectrum.tui.colorR": 0.8,
+        "spectrum.tui.colorG": 0.0,
+        "spectrum.tui.colorB": 1.0,
+        "spectrum.tui.useRandomCharacters": false,
+        "spectrum.tui.customCharacter": "#",
+        "spectrum.tui.visualizerMode": "Mode 4",
+        "spectrum.tui.key": 54
+    }
+}

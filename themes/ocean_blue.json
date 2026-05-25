@@ -1,0 +1,13 @@
+{
+    "theme.name": "Ocean Blue",
+    "theme.id": "ocean-blue",
+    "theme.properties": {
+        "spectrum.tui.colorR": 0.0,
+        "spectrum.tui.colorG": 0.4,
+        "spectrum.tui.colorB": 1.0,
+        "spectrum.tui.useRandomCharacters": false,
+        "spectrum.tui.customCharacter": "█",
+        "spectrum.tui.visualizerMode": "Default Mode",
+        "spectrum.tui.key": 51
+    }
+}
