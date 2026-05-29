@@ -111,8 +111,8 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
     static bool lastMState = false;
 
     // Preferred Tuning
-    float rollingMax = 60.0f;
-    const float noiseFloor = 35.0f; 
+    float rollingMax = 90.0f;
+    const float noiseFloor = 65.0f; 
 
     while (AudioEngine::Get().IsRunning()) {
         // Theme Switching
