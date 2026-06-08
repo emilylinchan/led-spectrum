@@ -109,9 +109,11 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
 
     bool themeChanged = true;
     static bool lastMState = false;
+    static bool lastVState = false;
 
     // Preferred Tuning
     float rollingMax = 90.0f;
+    // TODO(AGC): Replace hardcoded noiseFloor (65.0f) with dynamic floor when disableVolumeScaling is active.
     const float noiseFloor = 65.0f; 
 
     while (AudioEngine::Get().IsRunning()) {
@@ -153,6 +155,12 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
         }
         lastMState = currentMState;
 
+        bool currentVState = (GetAsyncKeyState('V') & 0x8000) != 0;
+        if (currentVState && !lastVState) {
+            disableVolumeScaling = !disableVolumeScaling;
+        }
+        lastVState = currentVState;
+
         if (frameCount % 30 == 0) {
             GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
             int newWidth = csbi.srWindow.Right - csbi.srWindow.Left + 1;
@@ -173,7 +181,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
         }
         frameCount++;
 
-        float masterVol = AudioEngine::Get().GenVolLevel();
+        float masterVol = disableVolumeScaling ? 1.0f : AudioEngine::Get().GenVolLevel();
         float frameMax = 0.0f;
         bool hasData = false;
 
@@ -273,7 +281,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
 
         char themeColor[64];
         sprintf_s(themeColor, sizeof(themeColor), "\033[38;2;%d;%d;%dm", (int)(jsonFileReader.currentTheme.colorRed * 255), (int)(jsonFileReader.currentTheme.colorGreen * 255), (int)(jsonFileReader.currentTheme.colorBlue * 255));
-
+        //TODO:Add AGC control 
         if (oscilloscopeMode) {
             for (int row = 0; row < renderHeight; row++) {
                 int blockRow = renderHeight - 1 - row;

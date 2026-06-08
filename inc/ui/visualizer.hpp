@@ -59,6 +59,7 @@ private:
     std::vector<float> peakDecay;
     std::vector<float> waveValues;
     bool oscilloscopeMode = false;
+    bool disableVolumeScaling = false;
 
     std::vector<std::string> levels = 
     {   "#", 
