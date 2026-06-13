@@ -92,6 +92,12 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
     // Dynamics
     std::vector<float> peakVelocity(initialMaxBins, 0.0f);
     std::vector<int> peakHold(initialMaxBins, 0);
+    std::deque<float> agcPeakWindow;
+    float agcGain = 1.0f;
+    const int AGC_WINDOW_SIZE = 30;
+    const float AGC_TARGET_PEAK = 1.0f;
+    const float MAX_AGC_GAIN = 5.0f;
+    float frameMaxWave = 0.0f;
 
     const struct ThemeModeManager themeModeManager[] = {
         {"Default Mode", Mode0},
@@ -113,8 +119,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
 
     // Preferred Tuning
     float rollingMax = 90.0f;
-    // TODO(AGC): Replace hardcoded noiseFloor (65.0f) with dynamic floor when disableVolumeScaling is active.
-    const float noiseFloor = 65.0f; 
+    float noiseFloor = 65.0f; 
 
     while (AudioEngine::Get().IsRunning()) {
         // Theme Switching
@@ -176,6 +181,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                 peakHold.assign(resizeMaxBins, 0);
                 waveValues.assign(resizeMaxBins, 0.5f);
                 frame.reserve(termWidth * termHeight * 10);
+				agcPeakWindow.clear();
                 std::cout << "\033[2J" << std::flush;
             }
         }
@@ -253,7 +259,21 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                     } else {
                         rollingMax = rollingMax * 0.999f + frameMax * 0.001f;
                     }
-                    if (rollingMax < 60.0f) rollingMax = 60.0f;
+					// dynamically adjust noise floor when volume scaling is disabled
+					// Remove the lower bound limit of rollingMax when volume scaling is disabled, allowing it to adapt to quieter audio levels.
+                    if (rollingMax < 60.0f && !disableVolumeScaling) rollingMax = 60.0f;    
+
+                    if (disableVolumeScaling) {
+                        if (frameMax > noiseFloor) {
+                            noiseFloor = noiseFloor * 0.9f + (frameMax - noiseFloor) * 0.1f;
+                        }
+                        else {
+                            noiseFloor = noiseFloor * 0.9f + (frameMax - noiseFloor) * 0.1f;
+                        }
+                        if (noiseFloor > 65.0f) noiseFloor = 65.0f;
+                        else if (noiseFloor < 0.0f) noiseFloor = 0.0f;
+                    }
+                    else if (noiseFloor > 65.0f) noiseFloor = 65.0f;
 
                 } else if (!wave.empty()) {
                     int offset = 0;
@@ -261,10 +281,23 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                         if (wave[j] < 0 && wave[j+1] >= 0) { offset = j; break; }
                     }
                     int remainingSamples = (int)wave.size() - offset;
+					// AGC Calculation by the max wave value in the before 30 frames
+                    agcPeakWindow.push_back(frameMaxWave);
+                    if (agcPeakWindow.size() > AGC_WINDOW_SIZE)
+                        agcPeakWindow.pop_front();
+					frameMaxWave = 0.0f;
+                    float windowMax = 0.001f; 
+                    for (float peak : agcPeakWindow)
+                        if (peak > windowMax) windowMax = peak;
+
+                    float targetGain = AGC_TARGET_PEAK / windowMax;
+                    if (targetGain > MAX_AGC_GAIN) targetGain = MAX_AGC_GAIN;
                     for (int i = 0; i < numBins; i++) {
                         int idx = offset + (int)(i * (float)remainingSamples / numBins);
                         if (idx >= (int)wave.size()) idx = (int)wave.size() - 1;
                         float target = (float)wave[idx] * masterVol;
+                        frameMaxWave = std::max(frameMaxWave, abs(target));
+						target *= targetGain;
                         target = std::max(-1.0f, std::min(1.0f, target * 0.9f));
                         float targetCentered = (target + 1.0f) * 0.5f;
                         waveValues[i] = waveValues[i] * 0.4f + targetCentered * 0.6f;
@@ -281,7 +314,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
 
         char themeColor[64];
         sprintf_s(themeColor, sizeof(themeColor), "\033[38;2;%d;%d;%dm", (int)(jsonFileReader.currentTheme.colorRed * 255), (int)(jsonFileReader.currentTheme.colorGreen * 255), (int)(jsonFileReader.currentTheme.colorBlue * 255));
-        //TODO:Add AGC control 
+
         if (oscilloscopeMode) {
             for (int row = 0; row < renderHeight; row++) {
                 int blockRow = renderHeight - 1 - row;
