@@ -93,7 +93,6 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
     std::vector<float> peakVelocity(initialMaxBins, 0.0f);
     std::vector<int> peakHold(initialMaxBins, 0);
     std::deque<float> agcPeakWindow;
-    float agcGain = 1.0f;
     const int AGC_WINDOW_SIZE = 30;
     const float AGC_TARGET_PEAK = 1.0f;
     const float MAX_AGC_GAIN = 5.0f;
@@ -264,16 +263,11 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                     if (rollingMax < 60.0f && !disableVolumeScaling) rollingMax = 60.0f;    
 
                     if (disableVolumeScaling) {
-                        if (frameMax > noiseFloor) {
-                            noiseFloor = noiseFloor * 0.9f + (frameMax - noiseFloor) * 0.1f;
-                        }
-                        else {
-                            noiseFloor = noiseFloor * 0.9f + (frameMax - noiseFloor) * 0.1f;
-                        }
+                        noiseFloor = noiseFloor * 0.9f + (frameMax - noiseFloor) * 0.1f;
                         if (noiseFloor > 65.0f) noiseFloor = 65.0f;
                         else if (noiseFloor < 0.0f) noiseFloor = 0.0f;
                     }
-                    else if (noiseFloor > 65.0f) noiseFloor = 65.0f;
+                    else noiseFloor = 65.0f;
 
                 } else if (!wave.empty()) {
                     int offset = 0;
@@ -296,7 +290,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                         int idx = offset + (int)(i * (float)remainingSamples / numBins);
                         if (idx >= (int)wave.size()) idx = (int)wave.size() - 1;
                         float target = (float)wave[idx] * masterVol;
-                        frameMaxWave = std::max(frameMaxWave, abs(target));
+                        frameMaxWave = std::max(frameMaxWave, std::abs(target));
 						target *= targetGain;
                         target = std::max(-1.0f, std::min(1.0f, target * 0.9f));
                         float targetCentered = (target + 1.0f) * 0.5f;

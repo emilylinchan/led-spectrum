@@ -26,6 +26,7 @@
 #include <string>
 #include <thread>
 #include <mutex>
+#include <deque>
 #include <cmath>
 #include <chrono>
 #include <algorithm>
