@@ -7,3 +7,4 @@ A massive thank you to the developers who have helped build and optimize `spectr
 | **Majock Bim** | Creator & Lead Maintainer | [@majockbim](https://github.com/majockbim) |
 | **Joe R.** | ANSI Color Mapping, Core Engine Updates | [@Joe](https://github.com/johnmilson125-png) |
 | **Yug Vashisth** | Critical documentation corrections | [@Yug-Vashisth](https://github.com/Yug-Vashisth) |
+| **Taiyu Zhang** | Volume scaling toggle (#27) | [@taiyuzhang775-pixel](https://github.com/taiyuzhang775-pixel) |

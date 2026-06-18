@@ -26,6 +26,7 @@
 #include <string>
 #include <thread>
 #include <mutex>
+#include <deque>
 #include <cmath>
 #include <chrono>
 #include <algorithm>
@@ -59,6 +60,7 @@ private:
     std::vector<float> peakDecay;
     std::vector<float> waveValues;
     bool oscilloscopeMode = false;
+    bool disableVolumeScaling = false;
 
     std::vector<std::string> levels = 
     {   "#", 
