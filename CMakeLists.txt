@@ -9,14 +9,14 @@ find_package(OpenMP REQUIRED)
 
 # 2. Defining target
 add_executable(spectrum
-    src/main.cpp 
-    src/engine.cpp 
-    src/visualizer.cpp 
-    src/signal_processor.cpp 
+    src/main.cpp
+    src/engine.cpp
+    src/visualizer.cpp
+    src/signal_processor.cpp
     src/fft.cpp
+    src/udp_sender.cpp
     src/settings.cpp
     third_party/ref/yyjson.c
-    resources/resources.rc
 )
 
 # 3. Include directories
@@ -28,10 +28,14 @@ target_link_directories(spectrum PRIVATE third_party/lib)
 
 # 5. Link libraries
 # ole32 and mmdevapi are standard Windows libraries
-target_link_libraries(spectrum PRIVATE 
-    fftw3 
-    ole32 
+# ws2_32 is the Winsock2 library required by UdpSender
+# winmm provides timeBeginPeriod/timeEndPeriod for 1 ms frame pacing
+target_link_libraries(spectrum PRIVATE
+    fftw3
+    ole32
     mmdevapi
+    ws2_32
+    winmm
     OpenMP::OpenMP_CXX
 )
 

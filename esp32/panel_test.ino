@@ -1,32 +1,32 @@
 /*
-    panel_test.ino
-    Individual LED test for 2 vertically stacked 8x32 WS2812B LED panels using ESP32 Dev Board
+  Individual LED test for 2 vertically stacked 8x32 WS2812B LED panels using ESP32 Dev Board
 
-    PHYSICAL LAYOUT:
-      - Panels are stacked to form a 32 wide x 16 tall grid
-      - Panel 0 (first in the data chain) is the BOTTOM half  -> y = 8..15
-      - Panel 1 (second in the data chain) is the TOP half    -> y = 0..7
-      - Each panel is column-major serpentine, origin top-left
-      - Panel 1 (top) is rotated 180 degrees relative to panel 0 (bottom)
+  PHYSICAL LAYOUT:
+    - Panels are stacked to form a 32 wide x 16 tall grid
+    - Panel 0 (first in the data chain) is the BOTTOM half  -> y = 8-15
+    - Panel 1 (second in the data chain) is the TOP half    -> y = 0-7
+    - Each panel is column-major serpentine, origin top-left
+    - Panel 1 (top) is rotated 180 degrees relative to panel 0 (bottom)
 
-      Logical grid coordinates:
-        x: 0..31  left -> right
-        y: 0..15  top  -> bottom  
+    Logical grid coordinates:
+      x: 0-31  left -> right
+      y: 0-15  top  -> bottom  
 
-    Tests (cycles automatically, prints status over Serial @ 115200):
-      1. Pixel walk     - lights each LED one at a time, in wire order
-      2. Row sweep      - one horizontal line, top -> bottom (verifies stack)
-      3. Column sweep   - one vertical line, left -> right
-      4. Panel ID       - bottom panel RED, top panel BLUE (verifies chain)
-      5. Corner markers - marks the four true corners of the 32x16 grid
-      6. Full white     - low-brightness full fill (power sanity check)
+  Tests (cycles automatically, prints status over Serial @ 115200):
+    1. Pixel walk     - lights each LED one at a time, in wire order
+    2. Row sweep      - one horizontal line, top -> bottom (verifies stack)
+    3. Column sweep   - one vertical line, left -> right
+    4. Panel ID       - bottom panel RED, top panel BLUE (verifies chain)
+    5. Corner markers - marks the four true corners of the 32x16 grid
+    6. Full white     - low-brightness full fill (power sanity check)
 
-    Send 'n' over Serial at any time to skip to the next test
+  Send 'n' over Serial at any time to skip to the next test
 */
 
 #include <FastLED.h>
 
 // ---------- CONFIG ----------
+
 #define DATA_PIN      32
 #define PANEL_WIDTH   32
 #define PANEL_HEIGHT  8
@@ -38,25 +38,23 @@
 #define NUM_LEDS      (PANEL_WIDTH * PANEL_HEIGHT * NUM_PANELS)  // 512
 
 // Keep low while powered over USB (brownout risk above ~50)
-#define BRIGHTNESS  30
-// ----------------------------
+#define BRIGHTNESS  25
+
+// ---------- LED INDEX MAPPING -----------
 
 CRGB leds[NUM_LEDS];
 
 // Map logical (x, y) -> LED index for 2 vertically stacked panels
-//   x: 0..31 left->right,  y: 0..15 top->bottom
 int XY(int x, int y) {
-  int panel;    // 0 = bottom panel (first in chain), 1 = top panel (second)
-  int localY;   // 0..7 within the chosen panel
+  int panel;    
+  int localY;  
 
   if (y >= PANEL_HEIGHT) {
-    // Bottom half of the grid -> bottom panel, which is first in the chain
     panel  = 0;
-    localY = y - PANEL_HEIGHT;   // 0..7 within the bottom panel
+    localY = y - PANEL_HEIGHT;   
   } else {
-    // Top half of the grid -> top panel, which is second in the chain
     panel  = 1;
-    localY = y;                  // 0..7 within the top panel
+    localY = y;             
   }
 
   int localX = x;
@@ -69,8 +67,7 @@ int XY(int x, int y) {
 
   int base = panel * PANEL_WIDTH * PANEL_HEIGHT;
 
-  // Column-major serpentine, origin top-left of each panel:
-  //   even columns run top->bottom, odd columns run bottom->top.
+  // Even columns run top->bottom, odd columns run bottom->top
   if (localX % 2 == 0) {
     return base + localX * PANEL_HEIGHT + localY;
   } else {

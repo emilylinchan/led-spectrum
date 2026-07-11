@@ -17,7 +17,13 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+// NOTE: include order matters!
+// The udp_sender.hpp header must be included before any header that 
+// includes <windows.h> (e.g. visualizer.hpp) because it defines WIN32_LEAN_AND_MEAN 
+// to prevent windows.h from including the legacy winsock.h, which conflicts with winsock2.h.
+#include "../inc/network/udp_sender.hpp"
 #include "../inc/ui/visualizer.hpp"
+#include <timeapi.h>
 
 #define AsciiRgb(k, r, g, b) "\033[" #k ";2;" #r ";" #g ";" #b "m"
 
@@ -25,6 +31,27 @@ template <typename _divide_number_t, typename _divide_number1_t>
 inline _divide_number_t __cdecl SafeDivide(_In_ _divide_number_t a, _In_ _divide_number1_t b) noexcept 
 {
     if (b == 0) {return(1.00f);} return(_divide_number_t(_divide_number1_t(a)/b));
+}
+
+// Resamples any-width source bars to N_LED_COLS, taking the MAX per span
+// (preserves transient peaks better than averaging on a 16-LED-tall display)
+static void ResampleToLed(const std::vector<float>& src, int srcCount, float* dst, int dstCount)
+{
+    if (srcCount <= 0 || dstCount <= 0) return;
+
+    for (int c = 0; c < dstCount; c++) {
+        // Map LED column c to a [start, end) range of source bars
+        int start = (int)((float)c       * srcCount / dstCount);
+        int end   = (int)((float)(c + 1) * srcCount / dstCount);
+        if (end <= start) end = start + 1;  // always >= 1 source bar
+        if (end > srcCount) end = srcCount;
+
+        float peak = 0.0f;
+        for (int j = start; j < end; j++) {
+            if (src[j] > peak) peak = src[j];
+        }
+        dst[c] = peak;
+    }
 }
 
 std::string RenderEqualizer::getBraille(unsigned char mask) {
@@ -69,11 +96,23 @@ bool __cdecl IsCorrectRow(int row) {
     return false;
 }
 
-void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<double>& wave, std::mutex& magMutex, int sampleRate, JsonFileReader& jsonFileReader) {
+void RenderEqualizer::EnableVisualizer(
+    std::vector<double>& freq, 
+    std::vector<double>& wave, 
+    std::mutex& magMutex, 
+    int sampleRate, 
+    JsonFileReader& jsonFileReader) {
+    
+    // UDP sender for ESP32 LED panel
+    UdpSender udp;
+    float ledValues[N_LED_COLS] = {};
+
+    // Get terminal dimensions and initialize bar/wave arrays
     GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
     termWidth  = csbi.srWindow.Right - csbi.srWindow.Left + 1;
     termHeight = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
 
+    // Calculate the number of frequency bins and bars based on terminal width
     numBins = termWidth * 2;
     N_BARS = termWidth / 3;
     if (numBins < 1) numBins = 1;
@@ -82,7 +121,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
     unsigned int frameCount = 0;
     std::string frame;
     frame.reserve(termWidth * termHeight * 10);
-    
+
     int initialMaxBins = std::max(numBins, N_BARS);
     barValues.assign(initialMaxBins, 0.0f);
     peakValues.assign(initialMaxBins, 0.0f);
@@ -98,6 +137,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
     const float MAX_AGC_GAIN = 5.0f;
     float frameMaxWave = 0.0f;
 
+    // Theme management
     const struct ThemeModeManager themeModeManager[] = {
         {"Default Mode", Mode0},
         {"Mode 1", Mode1},
@@ -116,9 +156,14 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
     static bool lastMState = false;
     static bool lastVState = false;
 
-    // Preferred Tuning
-    float rollingMax = 90.0f;
-    float noiseFloor = 65.0f; 
+    // Tuning parameters for the visualizer 
+    float rollingMax = 90.0f; // Rolling maximum for AGC, updated each frame based on the highest bar value
+    float noiseFloor = 65.0f; // Noise floor for the spectrum bars, below which the bars are considered silent
+
+    // Frame pacing: 60 fps = 16.667 ms per frame
+    constexpr auto FRAME_PERIOD = std::chrono::microseconds(16667); // 1e6 / 60
+    timeBeginPeriod(1); // Set system timer resolution to 1 ms for more accurate sleep durations
+    auto nextFrame = std::chrono::steady_clock::now() + FRAME_PERIOD;
 
     while (AudioEngine::Get().IsRunning()) {
         // Theme Switching
@@ -165,6 +210,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
         }
         lastVState = currentVState;
 
+        // Check for terminal resize every 30 frames to avoid excessive system calls
         if (frameCount % 30 == 0) {
             GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
             int newWidth = csbi.srWindow.Right - csbi.srWindow.Left + 1;
@@ -180,7 +226,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                 peakHold.assign(resizeMaxBins, 0);
                 waveValues.assign(resizeMaxBins, 0.5f);
                 frame.reserve(termWidth * termHeight * 10);
-				agcPeakWindow.clear();
+                agcPeakWindow.clear();
                 std::cout << "\033[2J" << std::flush;
             }
         }
@@ -191,6 +237,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
         bool hasData = false;
 
         {
+            // Lock the mutex to safely access shared frequency and waveform data
             std::lock_guard<std::mutex> lock(magMutex);
             if (!freq.empty()) {
                 hasData = true;
@@ -204,11 +251,13 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                         int iStart = std::max(0, std::min((int)std::floor(binStart), (int)freq.size() - 1));
                         int iEnd = std::max(0, std::min((int)std::ceil(binEnd), (int)freq.size() - 1));
                         
+                        // Find the peak value in the frequency range for this bar
                         double pVal = -100.0; 
                         for (int j = iStart; j <= iEnd; j++) {
                             if (freq[j] > pVal) pVal = freq[j];
                         }
 
+                        // Apply perceptual tilt to emphasize higher frequencies, then scale by master volume
                         float tilt = 1.0f + (float)i / (float)N_BARS * 0.4f; 
                         pVal *= tilt;
                         if (pVal > frameMax) frameMax = (float)pVal;
@@ -258,8 +307,8 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                     } else {
                         rollingMax = rollingMax * 0.999f + frameMax * 0.001f;
                     }
-					// dynamically adjust noise floor when volume scaling is disabled
-					// Remove the lower bound limit of rollingMax when volume scaling is disabled, allowing it to adapt to quieter audio levels.
+                    // Dynamically adjust noise floor when volume scaling is disabled.
+                    // Remove the lower bound limit of rollingMax when volume scaling is disabled, allowing it to adapt to quieter audio levels.
                     if (rollingMax < 60.0f && !disableVolumeScaling) rollingMax = 60.0f;    
 
                     if (disableVolumeScaling) {
@@ -274,12 +323,14 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                     for (int j = 0; j < (int)wave.size() - 1 && j < 500; j++) {
                         if (wave[j] < 0 && wave[j+1] >= 0) { offset = j; break; }
                     }
+
                     int remainingSamples = (int)wave.size() - offset;
-					// AGC Calculation by the max wave value in the before 30 frames
+
+                    // AGC Calculation by the max wave value in the before 30 frames
                     agcPeakWindow.push_back(frameMaxWave);
                     if (agcPeakWindow.size() > AGC_WINDOW_SIZE)
                         agcPeakWindow.pop_front();
-					frameMaxWave = 0.0f;
+                    frameMaxWave = 0.0f;
                     float windowMax = 0.001f; 
                     for (float peak : agcPeakWindow)
                         if (peak > windowMax) windowMax = peak;
@@ -291,7 +342,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                         if (idx >= (int)wave.size()) idx = (int)wave.size() - 1;
                         float target = (float)wave[idx] * masterVol;
                         frameMaxWave = std::max(frameMaxWave, std::abs(target));
-						target *= targetGain;
+                        target *= targetGain;
                         target = std::max(-1.0f, std::min(1.0f, target * 0.9f));
                         float targetCentered = (target + 1.0f) * 0.5f;
                         waveValues[i] = waveValues[i] * 0.4f + targetCentered * 0.6f;
@@ -302,12 +353,33 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
 
         if (!hasData) { std::this_thread::sleep_for(std::chrono::milliseconds(10)); continue; }
 
+        // LED tap: resample the finished bar/wave values down to 32 columns and send
+        if (udp.IsReady()) {
+            if (!oscilloscopeMode) {
+                // Spectrum bars → LED bars
+                ResampleToLed(barValues, N_BARS, ledValues, N_LED_COLS);
+            } else {
+                // Oscilloscope mode: waveValues are 0–1 positions centred on 0.5
+                ResampleToLed(waveValues, numBins, ledValues, N_LED_COLS);
+            }
+            udp.Send(ledValues, N_LED_COLS, oscilloscopeMode,
+                     (float)jsonFileReader.currentTheme.colorRed,
+                     (float)jsonFileReader.currentTheme.colorGreen,
+                     (float)jsonFileReader.currentTheme.colorBlue);
+        }
+
+        // Render the frame to the terminal
         frame.clear();
         int renderHeight = termHeight - 1;
         if (renderHeight < 1) renderHeight = 1;
 
+        // Theme management
         char themeColor[64];
-        sprintf_s(themeColor, sizeof(themeColor), "\033[38;2;%d;%d;%dm", (int)(jsonFileReader.currentTheme.colorRed * 255), (int)(jsonFileReader.currentTheme.colorGreen * 255), (int)(jsonFileReader.currentTheme.colorBlue * 255));
+        sprintf_s(themeColor, sizeof(themeColor), 
+                "\033[38;2;%d;%d;%dm", 
+                (int)(jsonFileReader.currentTheme.colorRed * 255), 
+                (int)(jsonFileReader.currentTheme.colorGreen * 255), 
+                (int)(jsonFileReader.currentTheme.colorBlue * 255));
 
         if (oscilloscopeMode) {
             for (int row = 0; row < renderHeight; row++) {
@@ -326,9 +398,15 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                             if (y >= dotBase && y < dotBase + 4) {
                                 int d = y - dotBase;
                                 if (mCol == 0) {
-                                    if (d == 0) mask |= 0x40; else if (d == 1) mask |= 0x04; else if (d == 2) mask |= 0x02; else if (d == 3) mask |= 0x01;
+                                    if (d == 0) mask |= 0x40; 
+                                    else if (d == 1) mask |= 0x04; 
+                                    else if (d == 2) mask |= 0x02; 
+                                    else if (d == 3) mask |= 0x01;
                                 } else {
-                                    if (d == 0) mask |= 0x80; else if (d == 1) mask |= 0x20; else if (d == 2) mask |= 0x10; else if (d == 3) mask |= 0x08;
+                                    if (d == 0) mask |= 0x80; 
+                                    else if (d == 1) mask |= 0x20; 
+                                    else if (d == 2) mask |= 0x10; 
+                                    else if (d == 3) mask |= 0x08;
                                 }
                             }
                         }
@@ -340,6 +418,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                 frame += "\033[K";
                 if (row < renderHeight - 1) frame += '\n';
             }
+
         } else if (themeMode == Mode5 || themeMode == Mode6) {
             for (int row = 0; row < renderHeight; row++) {
                 int blockRow = renderHeight - 1 - row;
@@ -372,6 +451,7 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                 frame += "\033[K";
                 if (row < renderHeight - 1) frame += '\n';
             }
+
         } else {
             const char* UTF8Codes[] = { "─", "│", "─", "│", "┌", "┐", "└", "┘", "├", "┤", "┬", "┴", "┼", "♪", "♫", "♬", "♩", "⣿", "⣶", "⣤", "⣀", "⡇", "#" };
             size_t sizeofCodes = sizeof(UTF8Codes) / sizeof(UTF8Codes[0]);
@@ -381,11 +461,22 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                     float rowA = float(row) / float(renderHeight);
                     float rowB = -rowA + 1.0f; float rowC = -fabs(rowA - 0.5f) + 1.0f;
                     float effect = (themeMode == Mode4) ? barValues[i] * 2.5f : 1.0f;
-                    int color[3] = { (int)((255 * rowA * effect) * jsonFileReader.currentTheme.colorRed), (int)((255 * rowB * effect) * jsonFileReader.currentTheme.colorGreen), (int)((255 * rowC * effect) * jsonFileReader.currentTheme.colorBlue) };
+                    int color[3] = { (int)((255 * rowA * effect) * jsonFileReader.currentTheme.colorRed), 
+                                     (int)((255 * rowB * effect) * jsonFileReader.currentTheme.colorGreen), 
+                                     (int)((255 * rowC * effect) * jsonFileReader.currentTheme.colorBlue) 
+                                   };
                     int barTop = 0, barBottom = 0;
-                    if (themeMode == Mode1) { barTop = (renderHeight - barHeight) / 2; barBottom = renderHeight - barTop; }
-                    else if (themeMode == Mode2) { barTop = barHeight; barBottom = barHeight; }
-                    else if (themeMode == ThemeMode::Mode3) { int bh1 = renderHeight - barHeight; barTop = (renderHeight - bh1) / 2; barBottom = renderHeight - barTop; }
+                    if (themeMode == Mode1) { 
+                        barTop = (renderHeight - barHeight) / 2; 
+                        barBottom = renderHeight - barTop; 
+                    }
+                    else if (themeMode == Mode2) { 
+                        barTop = barHeight; barBottom = barHeight; 
+                    }
+                    else if (themeMode == ThemeMode::Mode3) { 
+                        int bh1 = renderHeight - barHeight; barTop = (renderHeight - bh1) / 2; 
+                        barBottom = renderHeight - barTop; 
+                    }
                     char character[2] = {jsonFileReader.currentTheme.customCharacter, '\0'};
                     char temp[128];
                     if (themeMode == Mode0) {
@@ -403,8 +494,15 @@ void RenderEqualizer::EnableVisualizer(std::vector<double>& freq, std::vector<do
                 if (row > 1) frame += '\n';
             }
         }
-        std::cout << "\033[H" << frame << "\033[J" << std::flush;        
-        std::this_thread::sleep_for(std::chrono::milliseconds(16)); 
+        std::cout << "\033[H" << frame << "\033[J" << std::flush;
+
+        // Deadline-based frame pacing: sleep until the next frame's absolute time, then increment the deadline by one frame period. 
+        // If we missed the deadline, skip ahead to the next frame period after now, so we don't accumulate lag.
+        std::this_thread::sleep_until(nextFrame);
+        nextFrame += FRAME_PERIOD;
+        auto now = std::chrono::steady_clock::now();
+        if (nextFrame < now) nextFrame = now + FRAME_PERIOD;
     }
+    timeEndPeriod(1);
     std::cout << "\033[2J\033[H\033[?1049l\033[?25h" << std::flush;
 }
