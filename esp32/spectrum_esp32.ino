@@ -53,7 +53,7 @@
 #define BRIGHTNESS    25
 
 // FastLED power governor: caps total draw regardless of what we ask for.
-// 1500 mA is a safe ceiling for USB testing. Raise (e.g. to 6000) with a PSU.
+// 1500 mA is a safe ceiling for USB testing. Raise accordingly with a dedicated PSU.
 #define MAX_MILLIAMPS 1500
 
 // ---------- GLOBALS -----------

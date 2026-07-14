@@ -1,4 +1,3 @@
-
 <div align="center">
 
   <img width="520" alt="spectrum - Copy" src="https://github.com/user-attachments/assets/aeecb34f-0132-4a16-acf4-084cd1a19049" />
@@ -24,12 +23,21 @@
 
 This project takes **[spectrum](https://github.com/majockbim/spectrum)** — a real-time C++ audio visualizer for the Windows console — and gives it a body, lifting the spectrum data off the screen and onto a **512-LED physical display** built from two chained WS2812B panels. Play music on your PC and the LED matrix pulses along in real time, frequency by frequency, mirroring the terminal exactly!
 
+🎬 **[Watch the video demo](assets/led_spectrum_demo.mp4)**
+
 ---
 
 ## Project Structure
 
 ```text
 spectrum/
+├── assets/                     # + system diagram + demo video            ★ modified
+├── esp32/
+│   ├── spectrum_esp32.ino      # UDP receiver + XY mapping + renderers    ★ new
+│   └── panel_test.ino          # hardware verification                    ★ new
+├── hardware/
+│   ├── images/                 # wiring + cable reference photos          ★ new
+│   └── POWER.md                # power architecture + BOM                 ★ new
 ├── inc/
 │   ├── audio/                  # AudioEngine class                        [upstream]
 │   ├── math/                   # FFTEngine class                          [upstream]
@@ -49,9 +57,6 @@ spectrum/
 │   ├── signal_processor.cpp    # windowing + rolling buffer               [upstream]
 │   ├── udp_sender.cpp          # Winsock2 UDP sender                      ★ new
 │   └── visualizer.cpp          # + resample tap + UdpSender::Send()       ★ modified
-├── esp32/
-│   ├── spectrum_esp32.ino      # UDP receiver + XY mapping + renderers    ★ new
-│   └── panel_test.ino          # hardware verification                    ★ new
 ├── themes/                     # example custom themes                    [upstream]
 ├── third_party/                # FFTW3 + yyjson                           [upstream]
 ├── CMakeLists.txt              # + udp_sender.cpp + winmm + ws2_32        ★ modified
@@ -90,43 +95,21 @@ Each height byte is a column's intensity: in bar mode, `0` → dark and `255` �
 
 ## Hardware
 
-| Component | Detail |
-|---|---|
-| **LED panels** | 2× WESIRI WS2812B panels (8×32 / 256 LEDs each) |
-| **Display** | Chained into a **32 columns × 16 rows** grid (512 LEDs) |
-| **Controller** | Freenove ESP32-WROOM Dev Board |
-| **Data pin** | GPIO 32 (330Ω resistor inline on the data line recommended for signal integrity) |
-| **Power** | Dedicated 5V PSU with injection wires on each panel; common ground across all components |
-
-**Panel Orientation:**
+Two WESIRI WS2812B panels (8×32, 256 LEDs each) are chained into a single **32 column × 16 row** grid — **512 LEDs**. Panel 1 is mounted rotated 180° above Panel 0, so the data chain runs continuously across the seam:
 
 ```
              32 columns (x: 0 → 31, left → right)
        ┌────────────────────────┐  y = 0
        │ Panel 1 (2nd in chain) │  TOP half, mounted rotated 180°
-       └────────────────────────┘  y = 7
+       └────────────────────────┘  
           ▲  Panel 0 DOUT → Panel 1 DIN
-       ┌────────────────────────┐  y = 8
+       ┌────────────────────────┐  
        │ Panel 0 (1st in chain) │  BOTTOM half
        └────────────────────────┘  y = 15
           ▲  GPIO 32 (data pin) → Panel 0 DIN
 ```
 
----
-
-## Electrical Power
-
-At full brightness (bright white), each Red, Green, and Blue LED segment draws approximately 20mA. In other words, each WS2812B LED can pull about 60mA, so the theoretical worst case is:
-
-```
-  512 LEDs × 60 mA = 30,720 mA ≈ 30.7 A  @ 5 V  (~154 W)
-```
-
-Realistically, for an audio visualizer, it is uncommon for all LEDs to be turned on in this manner. When mixing colours and displaying animations, the current draw roughly one-third of that value (i.e. 20 mA per WS2812B LED).
-
-Choose a suitable power supply with these values in mind.
-
-> Source: [Last Minute Engineers — Controlling WS2812B Addressable LEDs with Arduino](https://lastminuteengineers.com/ws2812b-arduino-tutorial/).
+> Power architecture, wiring, and full bill of materials: **[hardware/POWER.md](hardware/POWER.md)**
 
 ---
 
@@ -146,12 +129,13 @@ Getting from a fresh clone to a working LED display. The PC app and the ESP32 fi
 
 ## Step 1 — Wire the hardware
 
-1. ESP32 **GPIO 32** → Panel 0 `DIN` (a 330Ω resistor inline on the data line is recommended).
+1. ESP32 **GPIO 32** → Panel 0 `DIN`.
 2. Panel 0 `DOUT` → Panel 1 `DIN`.
-3. 5V PSU `+5V` and `GND` → the thick-wire **power injection points** on each panel (not the JST data connectors).
-4. **Common ground:** tie PSU `GND`, both panels' `GND`, and the ESP32 `GND` together.
+3. Power bank port 1 → USB pigtail → the thick-wire **power injection points** on each panel (not the JST data connectors).
+4. Power bank port 2 → USB-A to USB-C cable → ESP32 USB port.
+5. **Common ground:** tie both panels' `GND` and the ESP32 `GND` together.
 
-> During first testing you can power a single panel from USB at low brightness, but keep `BRIGHTNESS` at 30 or below to avoid a brownout.
+> Full wiring detail, photos, and BOM: **[hardware/POWER.md](hardware/POWER.md)**
 
 ## Step 2 — Verify panel geometry (optional but recommended)
 
@@ -172,7 +156,7 @@ Other settings you can leave at defaults (change only if your build differs):
 #define UDP_PORT      4210   // must match ESP32_PORT on the PC side
 #define DATA_PIN      32     // GPIO the LED data line is on
 #define BRIGHTNESS    25     // keep low on USB power
-#define MAX_MILLIAMPS 1500   // FastLED power cap; can raise with a dedicated PSU
+#define MAX_MILLIAMPS 2000   // FastLED power cap; stay inside the supply's rating
 ```
 
 Select board **ESP32 Dev Module**, choose the COM port, and click **Upload**.
@@ -195,9 +179,9 @@ If it hangs on `Connecting to WiFi ...` then reports failure, your SSID/password
 Open `inc/network/udp_sender.hpp` and set `ESP32_IP` to the address from Step 4:
 
 ```cpp
-static constexpr const char* ESP32_IP   = "192.168.1.123"; // ← from the serial monitor
+static constexpr const char* ESP32_IP   = "192.168.1.123"; // from the serial monitor
 static constexpr uint16_t    ESP32_PORT = 4210;            // must match UDP_PORT in firmware
-static constexpr int         N_LED_COLS = 32;              // display width — leave at 32
+static constexpr int         N_LED_COLS = 32;              // display width
 ```
 
 ## Step 6 — Build and run the PC app

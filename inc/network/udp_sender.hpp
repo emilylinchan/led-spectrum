@@ -10,7 +10,7 @@
 #include <ws2tcpip.h>
 #include <cstdint>
 
-static constexpr const char* ESP32_IP   = "192.168.8.103"; // Fixed IP of the ESP32 on the LAN (set in spectrum_esp32.ino)
+static constexpr const char* ESP32_IP   = "192.168.8.76"; // Fixed IP of the ESP32 on the LAN (set in spectrum_esp32.ino)
                                                            // Use loopback address "127.0.0.1" for UDP sniffer testing 
 static constexpr uint16_t    ESP32_PORT = 4210;            
 static constexpr int         N_LED_COLS = 32;
