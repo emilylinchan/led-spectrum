@@ -190,8 +190,8 @@ From the repo root:
 
 ```bash
 cmake -B build -G "MinGW Makefiles"
-cmake --build build_mingw
-./build_mingw/spectrum.exe
+cmake --build build
+./build/spectrum.exe
 ```
 
 Play any audio (Spotify, YouTube — spectrum captures whatever your speakers output). The terminal fills with bars **and** the LED panel comes alive. Silence means empty bars, which can look like nothing's working — start some music to confirm.
