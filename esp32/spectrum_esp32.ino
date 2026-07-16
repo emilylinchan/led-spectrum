@@ -40,7 +40,7 @@
 #define MATRIX_HEIGHT (PANEL_HEIGHT * NUM_PANELS)               // 16
 #define NUM_LEDS      (PANEL_WIDTH * PANEL_HEIGHT * NUM_PANELS) // 512
 
-// UDP payload layout — MUST match udp_sender.cpp on the PC.
+// UDP payload layout
 #define MODE_BYTES    1
 #define COLOUR_BYTES  3
 #define HEADER_BYTES  (MODE_BYTES + COLOUR_BYTES)     // 4
@@ -53,8 +53,8 @@
 #define BRIGHTNESS    25
 
 // FastLED power governor: caps total draw regardless of what we ask for.
-// 1500 mA is a safe ceiling for USB testing. Raise accordingly with a dedicated PSU.
-#define MAX_MILLIAMPS 1500
+// 2000 mA sits inside the power bank's 5V/3A rating. Raise accordingly with a dedicated PSU.
+#define MAX_MILLIAMPS 2000
 
 // ---------- GLOBALS -----------
 
@@ -110,10 +110,6 @@ int XY(int x, int y) {
 inline void paintBackground() {
   for (int i = 0; i < NUM_LEDS; i++) leds[i] = CRGB(4, 4, 4);
 }
-
-// Gradient theme sentinel: the terminal stores it as pure white and computes
-// its green→red gradient per-row, so a white theme colour means "colour by
-// height" here too. (A custom white JSON theme also triggers this.)
 
 // Gradient theme:
 //   The theme's stored RGB is pure white (1,1,1) because the terminal
