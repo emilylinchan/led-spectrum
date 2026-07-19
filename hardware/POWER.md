@@ -84,7 +84,7 @@ This caps draw at 2000mA (inside the bank's 3A rating) and auto-dims any frame t
 | Power bank | USB-A ×2, 5V @ 3A | 1 | [Amazon.ca](https://www.amazon.ca/dp/B09176JCKZ) |
 | USB pigtail cable | USB-A male → 2-pin bare wire, 11in, 5V/3A | 1 | [Amazon.ca](https://www.amazon.ca/dp/B0BS6WHP3R) |
 | LED panel | WS2812B flexible matrix, 8×32 | 2 | [Amazon.ca](https://www.amazon.ca/dp/B07P5TSKX8) |
-| ESP32 dev board | Freenove ESP32-WROOM (ESP32-D0WD-V3) | 1 | [Amazon.ca](amazon.ca/dp/B0C9THDPXP?ref_=ppx_hzsearch_conn_dt_b_fed_asin_title_1) |
+| ESP32 dev board | Freenove ESP32-WROOM (ESP32-WROOM-32E) | 1 | [Amazon.ca](https://www.amazon.ca/dp/B0C9THDPXP) |
 | USB-A to USB-C cable | Standard | 1 | (Comes with ESP32 dev board) |
-| Heat shrink tubing | For pigtail solder joints | 6 | [Amazon.ca](https://www.amazon.ca/dp/B0BTKSQ8NS/ref=sspa_dk_detail_4?pd_rd_i=B0BTKSQ8NS&pd_rd_w=dU9PE&content-id=amzn1.sym.453395a9-a1f7-4b76-acdc-9e8eaa87e9be&pf_rd_p=453395a9-a1f7-4b76-acdc-9e8eaa87e9be&pf_rd_r=MZS1YWTVQK4XCPVM1PES&pd_rd_wg=DyZbZ&pd_rd_r=7a129894-9fb1-4109-b265-de4a41b0e972&s=industrial&sp_csd=d2lkZ2V0TmFtZT1zcF9kZXRhaWxfdGhlbWF0aWM&th=1) |
-| Jumper wire | Male-to-female (ESP32 header pin → panel connector) | 2 | [Amazon.ca](https://www.amazon.ca/dp/B07KLM9KR1?ref_=ppx_hzsearch_conn_dt_b_fed_asin_title_3) |
+| Heat shrink tubing | For pigtail solder joints | 1 | [Amazon.ca](https://www.amazon.ca/dp/B0BTKSQ8NS) |
+| Jumper wire | Male-to-female (ESP32 header pin → panel connector) | 2 wires | [Amazon.ca](https://www.amazon.ca/dp/B07KLM9KR1) |
